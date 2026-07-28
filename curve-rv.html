@@ -126,6 +126,30 @@
     <span class="meta">최신 <span id="rv-updated">—</span></span>
   </div>
 
+  <!-- 섹터 커브 오버레이 (CV-1) — 측정만: 전 섹터 커브를 한 차트에 겹쳐 표시 -->
+  <div class="section-title">섹터 커브</div>
+  <div class="controls">
+    <div class="ctrl-group" title="스프레드 커브 = 국고 대비 %p(bp) · 금리 커브 = 절대금리(국고+스프레드, %)">
+      <span class="ctrl-label">뷰</span>
+      <div class="seg" id="cv-view">
+        <button data-view="spread" class="active">스프레드 커브</button>
+        <button data-view="yield">금리 커브</button>
+      </div>
+    </div>
+    <div class="ctrl-group" id="cv-ghost-group" title="같은 섹터 색·점선으로 과거 커브를 겹쳐 표시(범례는 현재선과 연동)">
+      <span class="ctrl-label">과거 비교</span>
+      <div class="seg" id="cv-ghost">
+        <button data-ghost="none" class="active">없음</button>
+        <button data-ghost="1m">1M전</button>
+        <button data-ghost="3m">3M전</button>
+        <button data-ghost="both">둘 다</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div class="chart-box" id="cv-chart" style="height:380px"></div>
+    <div class="note">현재=실선 · 과거=점선. 절대금리 = 국고(동일 노드) + 섹터 스프레드. 노드 결측 시 해당점 제외(보간 없음). 범례 클릭으로 섹터 on/off. 판단·시그널 없음.</div>
+  </div>
+
   <!-- 모드 + 호라이즌 토글 -->
   <div class="controls">
     <div class="ctrl-group" title="기대수익 = 얼마 버나 / 레벨 %ile = 역사 대비 싸냐 비싸냐">
@@ -214,7 +238,9 @@
 <!-- app (ES module) -->
 <script type="module">
   import { initCurveRV } from './js/rv-ui.js';
+  import { initSectorCurves } from './js/rv-curves.js';
   initCurveRV();
+  initSectorCurves();
 </script>
 </body>
 </html>
