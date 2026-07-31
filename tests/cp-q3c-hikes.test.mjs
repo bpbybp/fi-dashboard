@@ -12,11 +12,11 @@ const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} ≉ $
 // points 헬퍼: offset i, date 'd<i>', bp = 임의 라인값.
 const pts = (arr) => arr.map(([offset, date, bp]) => ({ offset, date, bp }));
 
-// ── A. 마커 크기 = 4 + 0.12·bp ──
-test('A1 · 마커크기 25bp → 7', () => near(hikeMarkerSize(25), 7));
-test('A2 · 마커크기 50→10 · 75→13', () => { near(hikeMarkerSize(50), 10); near(hikeMarkerSize(75), 13); });
-test('A3 · base 4(0bp) · bp 증가에 단조', () => {
-  near(hikeMarkerSize(0), 4);
+// ── A. 마커 크기 = max(8, 6 + 0.16·bp) (앵커 25→10 · 50→14) ──
+test('A1 · 마커크기 25bp → 10', () => near(hikeMarkerSize(25), 10));
+test('A2 · 마커크기 50→14 · 75→18', () => { near(hikeMarkerSize(50), 14); near(hikeMarkerSize(75), 18); });
+test('A3 · 하한 8(작은 인상)·앵커 위 단조', () => {
+  near(hikeMarkerSize(0), 8); near(hikeMarkerSize(10), 8); // 6+0.16·10=7.6 < 8 → 하한
   assert.ok(hikeMarkerSize(25) < hikeMarkerSize(50) && hikeMarkerSize(50) < hikeMarkerSize(75));
 });
 
@@ -37,7 +37,7 @@ test('C1 · 창 밖 인상 제외', () => {
 });
 test('C2 · size=hikeBp 파생 · y=그 세션 라인값', () => {
   const [m] = buildHikeMarkers(P, [{ date: '2020-01-07', rateAfter: 1, bp: 50 }]);
-  near(m.size, 10); assert.equal(m.offset, 1); assert.equal(m.y, 13); near(m.hikeBp, 50);
+  near(m.size, 14); assert.equal(m.offset, 1); assert.equal(m.y, 13); near(m.hikeBp, 50);
 });
 test('C3 · isFinal 전파 · 인상 없음 → []', () => {
   const [m] = buildHikeMarkers(P, [{ date: '2020-01-07', rateAfter: 1, bp: 25, isFinal: true }]);

@@ -5,8 +5,9 @@
 //   US: 목표범위 상단이 원자료에 없어 정적 상수(US_HIKE_RUNS) — rateAfter = 상단(%).
 //     (EFFR 점프 도출은 상단과 불일치·노이즈 → 설계상 하드코딩. 사이클 id 로 키.)
 
-// ── 마커 크기: 인상폭(bp)에 비례. 25→7 · 50→10 · 75→13. base 4 로 0bp 도 가시. ──
-export const hikeMarkerSize = (bp) => 4 + 0.12 * bp;
+// ── 마커 크기: 인상폭(bp)에 비례. 앵커 25→10 · 50→14 (기울기 0.16), 75→18. 하한 8. ──
+//   (가시성 재조정: 라인에 묻히지 않도록 상향. ◇ 최종 인상도 동일 스케일.)
+export const hikeMarkerSize = (bp) => Math.max(8, 6 + 0.16 * bp);
 
 // ── KR 인상 도출: baseArr([{date,rate}] 오름차순)에서 rate 상승 지점을 인상으로. ──
 //   각 인상: rateAfter = 인상 후 기준금리(%), bp = 인상폭, isFinal = 다음 '변경'이 인하이면 true.

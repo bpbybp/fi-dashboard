@@ -150,7 +150,8 @@ export function renderGauge(divId, g) {
 //   overlays: [{ label, color, current, ref, points:[{offset,bp}], markers?, market? }].
 //   markers(cp-hikes.buildHikeMarkers): [{offset, y, size, isFinal, rateAfter, hikeBp, date}].
 //     ▲=인상 · ◇=최종 인상. 크기 ∝ 인상폭. 마커 trace 는 라인 뒤에 append → z-order 상 라인 위.
-//     라인 opacity 상속(참고·과거=0.5) → 시각 위계 유지. 0개 사이클은 trace 자체를 만들지 않는다.
+//     마커는 이 기능의 핵심 정보 레이어 → opacity 0.9 고정(전 사이클). 시각 위계는 라인이 담당
+//     (현재=굵은 선/과거·참고=반투명·점선). 테두리(헤일로)=배경색으로 라인과 분리. 0개 사이클은 trace 생략.
 export function renderOverlayChart(divId, overlays) {
   const visible = overlays.filter((o) => o.points.length);
   const traces = visible.map((o) => ({
@@ -172,9 +173,9 @@ export function renderOverlayChart(divId, overlays) {
         color: o.color,
         size: o.markers.map((m) => m.size),
         symbol: o.markers.map((m) => (m.isFinal ? 'diamond' : 'triangle-up')),
-        line: { color: C.markerLine, width: 0.8 },
+        line: { color: C.markerLine, width: 1.5 }, // 헤일로 = 배경색(테마별), 라인과 분리
       },
-      opacity: o.current ? 1 : 0.5, // 라인과 동일 opacity 상속
+      opacity: 0.9, // 전 사이클 고정(라인 opacity 미상속) — 핵심 정보 레이어
       customdata: o.markers.map((m) => [m.date, m.hikeBp, m.rateAfter]),
       hovertemplate: `%{customdata[0]} · +%{customdata[1]}bp · 인상 후 ${suffix}%{customdata[2]:.2f}%<extra></extra>`,
     });
@@ -228,8 +229,10 @@ export function buildExportSpec(elId) {
       if (t.marker.color) t.marker.color = mapColor(t.marker.color);
       if (t.marker.size != null) t.marker.size = Array.isArray(t.marker.size) ? t.marker.size.map((s) => s * mS) : t.marker.size * mS;
       if (t.marker.line) {
-        if (t.marker.line.color) t.marker.line.color = mapColor(t.marker.line.color);
-        if (t.marker.line.width != null) t.marker.line.width *= lS;
+        // 헤일로(marker.line)는 배경색 = 내보내기 흰 배경으로 고정 → 화면 테마 무관 4조합 동일.
+        //   (화면 markerLine 은 #0d1117/#faf9f6 로 테마별 상이 → 그대로 두면 조합 불일치.)
+        if (t.marker.line.color) t.marker.line.color = EXPORT.bg;
+        if (t.marker.line.width != null) t.marker.line.width *= lS; // 폭도 선 배율 적용
       }
     }
   }
