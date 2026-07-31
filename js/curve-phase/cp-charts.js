@@ -147,21 +147,45 @@ export function renderGauge(divId, g) {
 }
 
 // 사이클 오버레이: x=세션 오프셋(T=0 대비), y=기울기 bp. 현재=굵은 선, 과거=반투명, 참고=점선.
-//   overlays: [{ label, color, current, ref, points:[{offset,bp}] }].
+//   overlays: [{ label, color, current, ref, points:[{offset,bp}], markers?, market? }].
+//   markers(cp-hikes.buildHikeMarkers): [{offset, y, size, isFinal, rateAfter, hikeBp, date}].
+//     ▲=인상 · ◇=최종 인상. 크기 ∝ 인상폭. 마커 trace 는 라인 뒤에 append → z-order 상 라인 위.
+//     라인 opacity 상속(참고·과거=0.5) → 시각 위계 유지. 0개 사이클은 trace 자체를 만들지 않는다.
 export function renderOverlayChart(divId, overlays) {
-  const traces = overlays.filter((o) => o.points.length).map((o) => ({
+  const visible = overlays.filter((o) => o.points.length);
+  const traces = visible.map((o) => ({
     x: o.points.map((p) => p.offset), y: o.points.map((p) => p.bp), name: o.label, mode: 'lines',
     line: { color: o.color, width: o.current ? 2.6 : 1.4, dash: o.ref ? 'dot' : 'solid' },
     opacity: o.current ? 1 : 0.5,
     hovertemplate: `T%{x:+d}세션<br>${o.label} %{y:.1f}bp<extra></extra>`,
   }));
+  // 마커 trace: 라인 뒤에 append(위에 그려짐). hovermode:'x unified' 에서 해당 T+N 컬럼에 한 행으로 낀다.
+  //   customdata=[date, 인상폭bp, 인상후%]. US 는 '상단' 표기. <extra></extra> 로 우측 트레이스 박스 제거.
+  const markerTraces = [];
+  for (const o of visible) {
+    if (!o.markers || !o.markers.length) continue; // 0개 사이클(예: KR 2026) → skip
+    const suffix = o.market === 'US' ? '상단 ' : '';
+    markerTraces.push({
+      x: o.markers.map((m) => m.offset), y: o.markers.map((m) => m.y),
+      mode: 'markers', name: o.label, showlegend: false,
+      marker: {
+        color: o.color,
+        size: o.markers.map((m) => m.size),
+        symbol: o.markers.map((m) => (m.isFinal ? 'diamond' : 'triangle-up')),
+        line: { color: C.markerLine, width: 0.8 },
+      },
+      opacity: o.current ? 1 : 0.5, // 라인과 동일 opacity 상속
+      customdata: o.markers.map((m) => [m.date, m.hikeBp, m.rateAfter]),
+      hovertemplate: `%{customdata[0]} · +%{customdata[1]}bp · 인상 후 ${suffix}%{customdata[2]:.2f}%<extra></extra>`,
+    });
+  }
   const layout = baseLayout({
     shapes: [{ type: 'line', xref: 'x', yref: 'paper', x0: 0, x1: 0, y0: 0, y1: 1,
       line: { color: C.axis, width: 1, dash: 'dash' } }],
     xaxis: { type: 'linear', gridcolor: C.grid, linecolor: C.axis, zeroline: false, tickfont: { size: 10 },
       title: { text: 'T=0(첫 인상일) 대비 세션(영업일)', font: { size: 11 } } },
   });
-  Plotly.newPlot(divId, traces, layout, { displayModeBar: false, responsive: true });
+  Plotly.newPlot(divId, [...traces, ...markerTraces], layout, { displayModeBar: false, responsive: true });
 }
 
 // ── 발표용 PNG 내보내기 프리셋 (DESIGN.md "발표용 내보내기 프리셋" 참조) ──

@@ -7,6 +7,7 @@ import { spreadSeries, colSpreadBp, fwd5y5y, seriesDiff, decompKR, decompUS, dec
 import { C, applyPalette, LOOKBACKS, renderSpreadChart, renderDecompChart, renderOverlayChart, renderGauge, exportChart } from './cp-charts.js';
 import { judgeKR, judgeUS, realizedKR } from './cp-judge.js';
 import { buildOverlay } from './cp-overlay.js';
+import { buildHikeMarkers, deriveKRHikes, usHikesFlat } from './cp-hikes.js';
 import * as TXT from './cp-text.js';
 
 const LS_KEY = 'curve-phase';
@@ -242,10 +243,13 @@ function withColors(overlays) {
   let i = 0;
   return overlays.map((o) => ({ ...o, color: o.current ? C.accent : cyc[i++ % cyc.length] }));
 }
+// 마커 범례 1줄. ▲/◇ 글리프는 마커색과 무관한 기호 안내 → muted 텍스트(accent-as-text 아님).
+//   '◇ 미표시'는 그 사이클의 최종 인상이 창(T+250) 밖이라는 뜻(예: KR 2005/2021·US 2016/2022).
+const HIKE_LEGEND = '<div class="cyc-legend">▲ 인상 · ◇ 최종 인상 · 크기 ∝ 인상폭 · ◇ 미표시 = 최종 인상이 창 밖</div>';
 function renderCaptions(id, overlays) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.innerHTML = overlays.map((o) => {
+  el.innerHTML = HIKE_LEGEND + overlays.map((o) => {
     const d = o.deltaBp == null ? '' : `<span class="cyc-delta">Δ ${signed(o.deltaBp, 1)}bp</span>`;
     const win = o.lastOffset == null ? '' : ` <span class="cyc-win">(T0→T+${o.lastOffset})</span>`;
     return `<div class="cyc-row">
@@ -253,9 +257,16 @@ function renderCaptions(id, overlays) {
         <span class="cyc-lab">${o.label}</span><span class="cyc-cap">${o.caption}</span>${d}${win}</div>`;
   }).join('');
 }
+// 마커 부착: KR=기준금리 도출 인상, US=전체 인상(usHikesFlat) 을 각 사이클 창(o.points)에 매핑.
+//   buildHikeMarkers 가 창 밖·offset 0(T=0 첫 인상) 제외 → 0개면 renderOverlayChart 가 trace skip.
+function attachMarkers(overlays, market, hikes) {
+  return overlays.map((o) => ({ ...o, market, markers: buildHikeMarkers(o.points, hikes) }));
+}
 function renderOverlays() {
   if (!OVERLAY) return;
-  const kr = withColors(OVERLAY.kr), us = withColors(OVERLAY.us);
+  const krHikes = deriveKRHikes(DATA.krBase.data), usHikes = usHikesFlat();
+  const kr = attachMarkers(withColors(OVERLAY.kr), 'KR', krHikes);
+  const us = attachMarkers(withColors(OVERLAY.us), 'US', usHikes);
   renderOverlayChart('chart-kr-overlay', kr);
   renderOverlayChart('chart-us-overlay', us);
   renderCaptions('kr-caps', kr);
