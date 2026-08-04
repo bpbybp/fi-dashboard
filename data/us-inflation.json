@@ -1715,7 +1715,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-05"
+        "last_updated": "2026-06"
       },
       "data": [
         {
@@ -2548,11 +2548,15 @@
         },
         {
           "period": "2026-04",
-          "value": 130.938
+          "value": 130.932
         },
         {
           "period": "2026-05",
-          "value": 131.527
+          "value": 131.535
+        },
+        {
+          "period": "2026-06",
+          "value": 131.392
         }
       ]
     },
@@ -2566,7 +2570,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-05"
+        "last_updated": "2026-06"
       },
       "data": [
         {
@@ -3399,11 +3403,15 @@
         },
         {
           "period": "2026-04",
-          "value": 129.667
+          "value": 129.663
         },
         {
           "period": "2026-05",
-          "value": 130.082
+          "value": 130.094
+        },
+        {
+          "period": "2026-06",
+          "value": 130.266
         }
       ]
     }
