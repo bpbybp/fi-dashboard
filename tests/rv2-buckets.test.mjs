@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import {
   RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K, RV2_TENOR_GRID, RWA0_ISSUERS, RWA20_ISSUERS,
   ISSUER_RATING_MAP, RANKING_EXCLUDED_SECTORS, SUBSECTOR_BY_RWA,
+  RV2_STAT_TENOR_KEYS, statTenorOf,
   normalizeIssuer, classifySector, resolveRating, tenorBucket, tenorBucketFromYears,
   mad, annotate, buildBuckets,
 } from '../js/rv2-buckets.js';
@@ -274,19 +275,55 @@ test('가드 — 판정은 offset_bp 유효 관측 기준이다 (미상은 세�
 
 test('가드 — n<8 리프는 섹터 → 세션 순으로 롤업한다', () => {
   const mk = (issuer, n, off) => Array.from({ length: n }, () => q({ issuer_raw: issuer, offset_bp: off }));
+  // 만기가 없는 관측이라 **통계 칸이 만들어지지 않는다**(만기 미상 = B-9 잔재, 칸 아님).
   // 공사·공단/RWA20 10건(중앙값 5) + 지방채 2건(중앙값 -3)
   const { rows, leaves } = buildBuckets([...mk('한국전력1477', 10, 5), ...mk('대구광역시채권1', 2, -3)], { todayStr: TODAY });
   assert.equal(leaves.get('중앙공사(SOC·에너지계)').n, 10);
   assert.equal(leaves.get('지방채').n, 2);
 
   const gongsa = rows.find((r) => r.sector === '공사·공단');
-  assert.equal(gongsa.medianSource, '리프', 'n>=8 이면 자기 리프를 쓴다');
+  assert.equal(gongsa.cell, null, '만기 미상 → 칸 없음');
+  assert.equal(gongsa.medianSource, '섹터롤업', '칸이 없으면 섹터 리프 통계를 쓴다');
   assert.equal(gongsa.medianUsed, 5);
 
   const jibang = rows.find((r) => r.sector === '지방채');
-  // 지방채는 리프도 섹터도 n=2 라 세션으로 내려간다.
+  // 지방채는 칸도 리프도 섹터도 n=2 라 세션으로 내려간다.
   assert.equal(jibang.medianSource, '세션롤업');
   assert.equal(jibang.medianUsed, 5, '세션 12건의 중앙값');
+});
+
+test('가드 경계 — n=7 은 롤업, n=8 은 자기 칸 (v1.2)', () => {
+  const mk = (n, off, maturity) => Array.from({ length: n }, () => q({
+    issuer_raw: '중금채', offset_bp: off, maturity_date: maturity, side: 'offer',
+  }));
+  // 특은 · ~1y 에 7건(중앙값 5), 특은 · 1-2 에 20건(중앙값 1) → 리프 27건.
+  const seven = buildBuckets([...mk(7, 5, '2027-01-01'), ...mk(20, 1, '2028-03-01')], { todayStr: TODAY });
+  const r7 = seven.rows.find((r) => r.statTenor === '~1y');
+  assert.equal(seven.cells.get('특은 · ~1y').n, 7);
+  assert.equal(r7.medianSource, '섹터롤업', 'n=7 → 칸 통계를 쓰지 않는다');
+  assert.equal(r7.medianUsed, seven.leaves.get('특은').median);
+
+  // 한 건만 늘려 8이 되면 자기 칸을 쓴다.
+  const eight = buildBuckets([...mk(8, 5, '2027-01-01'), ...mk(20, 1, '2028-03-01')], { todayStr: TODAY });
+  const r8 = eight.rows.find((r) => r.statTenor === '~1y');
+  assert.equal(eight.cells.get('특은 · ~1y').n, 8);
+  assert.equal(r8.medianSource, '칸');
+  assert.equal(r8.medianUsed, 5);
+});
+
+test('통계 격자 — 표시 6칸이 통계 3칸으로 접힌다 (매핑 단일 정의)', () => {
+  assert.deepEqual(RV2_STAT_TENOR_KEYS, ['~1y', '1-2', '2y+']);
+  assert.equal(statTenorOf('~1y'), '~1y');
+  assert.equal(statTenorOf('1-2'), '1-2');
+  for (const k of ['2-3', '3-5', '5-10', '10y+']) assert.equal(statTenorOf(k), '2y+', k);
+  // 만기 미상은 칸이 아니다 — B-9 잔재라 "만기 구간"으로 부를 수 없다. 섹터로 롤업한다.
+  assert.equal(statTenorOf(null), null);
+  assert.equal(statTenorOf('미상'), null);
+
+  const rows = buildBuckets([q({ issuer_raw: '중금채', offset_bp: 1, maturity_date: null, side: 'offer' })],
+    { todayStr: TODAY }).rows;
+  assert.equal(rows[0].statTenor, null);
+  assert.equal(rows[0].cell, null, '칸을 만들지 않는다');
 });
 
 test('집계 — CP·CD 는 리프 집계에서 아예 빠진다', () => {
@@ -355,11 +392,24 @@ test('픽스처 — RWA 3분할 후에도 n<8 리프는 1개(관측 1건)뿐 →
   for (const k of ['중앙공사(보증·기금계)', '중앙공사(SOC·에너지계)', '지방공기업']) {
     assert.ok(fx.leaves.get(k).n >= RV2_MIN_BUCKET_SAMPLE, k);
   }
-  assert.equal(fx.stats.observationsUnderGuard, 1);
-  // 롤업이 예외로 남는다 — Phase 0 §6 결정 1이 우려한 "롤업이 기본" 상황이 아니다.
-  assert.equal(fx.stats.rollupLeaf, 1005);
+  // v1.2: 1차 단위는 칸(섹터 리프 × 통계 만기). 칸 미달분만 섹터로 롤업한다.
+  assert.equal(fx.stats.cells, 31);
+  assert.equal(fx.stats.cellsUnderGuard, 9);
+  assert.equal(fx.stats.observationsUnderGuard, 30, '칸 미달 관측 = 전체의 3.0%');
+  assert.equal(fx.stats.rollupCell, 965);
+  assert.equal(fx.stats.rollupLeaf, 40, '칸 미달 30 + 만기 미상 10');
   assert.equal(fx.stats.rollupSector, 0);
   assert.equal(fx.stats.rollupSession, 1);
+});
+
+test('픽스처 — 특은 3칸 중앙값이 실측표와 일치한다 (v1.2 승격 근거)', () => {
+  // 승격 전에는 이 셋을 한 중앙값(−0.20)으로 뭉갰다. 칸 간 폭 5.0bp 는 섹터 MAD(1.60)보다 크다.
+  assert.equal(fx.cells.get('특은 · ~1y').median, 0);
+  assert.equal(fx.cells.get('특은 · 1-2').median, -3);
+  assert.equal(fx.cells.get('특은 · 2y+').median, 2);
+  assert.deepEqual(
+    ['~1y', '1-2', '2y+'].map((k) => fx.cells.get(`특은 · ${k}`).n), [214, 99, 11]);
+  assert.equal(fx.leaves.get('특은').median, -0.2, '섹터 중앙값은 그대로 남는다(롤업 대상)');
 });
 
 test('픽스처 — rating_basis 분해. 역매핑이 등급미상을 75.4% → 26.5% 로 줄인다', () => {

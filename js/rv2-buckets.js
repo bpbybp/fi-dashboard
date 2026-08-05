@@ -28,7 +28,41 @@ export const RV2_MIN_BUCKET_SAMPLE = 8;
 /** MAD 계수. 평균±표준편차 금지 — 소표본 강건성 때문이다. */
 export const RV2_MAD_K = 2.5;
 
-/** 만기 격자(연 단위). 채팅 원문이 "1.5년", "2~3년" 처럼 연 단위로 말한다. */
+/**
+ * **통계 격자** (v1.2) — 표시 격자(`RV2_TENOR_GRID`)와 **다르다.**
+ *
+ * v1.1 까지 만기는 표시 축이었다(필터·소그룹만). 실사용 피드백으로 통계 축으로 승격하면서
+ * 격자를 굵게 잡았다. 근거는 두 가지다(보고서 §9):
+ *   1. 실측 분포가 심하게 편중돼 있다 — `~1y`+`1-2` 가 84%, `10y+` 는 0건.
+ *      표시 격자 6칸을 그대로 쓰면 주요 섹터 칸의 1/3이 표본 가드에 미달한다.
+ *   2. 그런데도 만기는 중앙값을 실제로 가른다 — 8개 주요 섹터 중 6개에서
+ *      칸 간 중앙값 폭이 그 섹터의 MAD 를 넘는다(특은 5.0bp).
+ * 즉 "가르긴 가르는데 6칸은 너무 잘다"가 실측 결론이고, 3칸이 그 타협점이다.
+ *
+ * **표시 → 통계 매핑은 여기 한 곳에만 있다.** UI 는 재정의하지 않고 이 상수를 쓴다.
+ */
+export const RV2_STAT_TENOR_KEYS = ['~1y', '1-2', '2y+'];
+
+/**
+ * 표시 격자 key → 통계 칸 key. `null` 은 **칸을 만들지 않는다**는 뜻이다.
+ *
+ * 만기 미상은 칸이 아니다. 그것은 만기 구간이 아니라 **B-9 잔재**(rv-parser 의
+ * `parseMaturity` 가 `3.30 팔자` 의 수익률을 2026-03-30 으로 오인하는 건)이므로,
+ * "만기 미상 구간의 시장 수준" 같은 것은 존재하지 않는다. 섹터 통계로 롤업한다.
+ */
+export const STAT_TENOR_BY_DISPLAY = {
+  '~1y': '~1y',
+  '1-2': '1-2',
+  '2-3': '2y+',
+  '3-5': '2y+',
+  '5-10': '2y+',
+  '10y+': '2y+',
+};
+
+/** 표시 만기 key(또는 null) → 통계 칸 key | null. */
+export const statTenorOf = (displayKey) => STAT_TENOR_BY_DISPLAY[displayKey] || null;
+
+/** 만기 격자(연 단위) — **표시용**. 채팅 원문이 "1.5년", "2~3년" 처럼 연 단위로 말한다. */
 export const RV2_TENOR_GRID = [
   { key: '~1y', lo: 0, hi: 1 },
   { key: '1-2', lo: 1, hi: 2 },
@@ -253,11 +287,16 @@ export function mad(values) {
 export function annotate(quote, todayStr) {
   const sec = classifySector(quote);
   const rat = resolveRating(quote, sec.sector);
+  const tenor = tenorBucket(quote.maturity_date, todayStr);
+  const statTenor = statTenorOf(tenor);
   return {
     ...sec,
     rating: rat.rating,
     rating_basis: rat.rating_basis,
-    tenor: tenorBucket(quote.maturity_date, todayStr),
+    tenor,        // 표시 격자(6칸) — v1.1 칩·소그룹용
+    statTenor,    // 통계 칸(3칸) | null(미상 → 섹터 롤업)
+    // 통계 리프 = 섹터 리프 × 통계 칸. 미상은 칸이 없으므로 리프도 없다.
+    cell: statTenor ? `${sec.leaf} · ${statTenor}` : null,
     rankable: quote.offset_bp != null && !RANKING_EXCLUDED_SECTORS.has(sec.sector),
     q: quote,
   };
@@ -275,7 +314,8 @@ export function annotate(quote, todayStr) {
 export function buildBuckets(quotes, { todayStr, minSample = RV2_MIN_BUCKET_SAMPLE, madK = RV2_MAD_K } = {}) {
   const rows = (quotes || []).map((q) => annotate(q, todayStr));
 
-  const leaves = new Map();
+  const cells = new Map();   // v1.2: 섹터 리프 × 통계 만기칸 — 통계의 1차 단위
+  const leaves = new Map();  // 섹터 리프 — 칸이 가드에 미달할 때의 롤업 대상
   const sectors = new Map();
   const touch = (map, key) => {
     if (!map.has(key)) map.set(key, { key, values: [], missing: 0, n: 0 });
@@ -284,9 +324,11 @@ export function buildBuckets(quotes, { todayStr, minSample = RV2_MIN_BUCKET_SAMP
 
   for (const r of rows) {
     if (RANKING_EXCLUDED_SECTORS.has(r.sector)) continue; // 분류만, 집계 제외
+    const C = r.cell ? touch(cells, r.cell) : null;
     const L = touch(leaves, r.leaf);
     const S = touch(sectors, r.sector);
-    if (r.q.offset_bp == null) { L.missing++; S.missing++; continue; }
+    if (r.q.offset_bp == null) { if (C) C.missing++; L.missing++; S.missing++; continue; }
+    if (C) C.values.push(r.q.offset_bp);
     L.values.push(r.q.offset_bp);
     S.values.push(r.q.offset_bp);
   }
@@ -297,6 +339,7 @@ export function buildBuckets(quotes, { todayStr, minSample = RV2_MIN_BUCKET_SAMP
     b.mad = mad(b.values);
     return b;
   };
+  for (const b of cells.values()) finish(b);
   for (const b of leaves.values()) finish(b);
   for (const b of sectors.values()) finish(b);
 
@@ -305,32 +348,39 @@ export function buildBuckets(quotes, { todayStr, minSample = RV2_MIN_BUCKET_SAMP
     .map((r) => r.q.offset_bp);
   const session = finish({ key: '세션', values: sessionValues, missing: 0, n: 0 });
 
-  // 각 관측에 적용될 기준 중앙값 결정 — 리프 → 섹터 → 세션
+  // 각 관측에 적용될 기준 중앙값 결정 — 칸 → 리프 → 섹터 → 세션.
+  // v1.2 에서 맨 앞에 '칸'(섹터×통계만기)이 붙었다. 나머지 롤업 사슬은 그대로다.
   for (const r of rows) {
     if (RANKING_EXCLUDED_SECTORS.has(r.sector)) { r.medianUsed = null; r.medianSource = '제외'; continue; }
+    const C = r.cell ? cells.get(r.cell) : null;
     const L = leaves.get(r.leaf), S = sectors.get(r.sector);
-    if (L && L.n >= minSample) { r.medianUsed = L.median; r.medianSource = '리프'; }
-    else if (S && S.n >= minSample) { r.medianUsed = S.median; r.medianSource = '섹터롤업'; }
-    else if (session.n) { r.medianUsed = session.median; r.medianSource = '세션롤업'; }
-    else { r.medianUsed = null; r.medianSource = '없음'; }
+    const ref = (C && C.n >= minSample) ? C
+      : (L && L.n >= minSample) ? L
+        : (S && S.n >= minSample) ? S : (session.n ? session : null);
+    r.medianSource = ref === C ? '칸' : ref === L ? '섹터롤업' : ref === S ? '상위섹터롤업'
+      : ref ? '세션롤업' : '없음';
+    r.medianUsed = ref ? ref.median : null;
     r.adjustedOffset = (r.q.offset_bp != null && r.medianUsed != null) ? r.q.offset_bp - r.medianUsed : null;
     // 이상치 게이트 — |관측 − 중앙값| > k·MAD. 제외가 아니라 표시가 목적이다.
-    const ref = (L && L.n >= minSample) ? L : (S && S.n >= minSample) ? S : session;
     r.outlier = (r.q.offset_bp != null && ref && ref.mad != null && ref.mad > 0)
       ? Math.abs(r.q.offset_bp - ref.median) > madK * ref.mad : false;
   }
 
   const arr = [...leaves.values()];
+  const carr = [...cells.values()];
   const stats = {
+    cells: carr.length,
+    cellsUnderGuard: carr.filter((b) => b.n < minSample).length,
     leaves: arr.length,
     leavesUnderGuard: arr.filter((b) => b.n < minSample).length,
-    observationsUnderGuard: arr.filter((b) => b.n < minSample).reduce((s, b) => s + b.n, 0),
-    rollupLeaf: rows.filter((r) => r.medianSource === '리프').length,
-    rollupSector: rows.filter((r) => r.medianSource === '섹터롤업').length,
+    observationsUnderGuard: carr.filter((b) => b.n < minSample).reduce((s, b) => s + b.n, 0),
+    rollupCell: rows.filter((r) => r.medianSource === '칸').length,
+    rollupLeaf: rows.filter((r) => r.medianSource === '섹터롤업').length,
+    rollupSector: rows.filter((r) => r.medianSource === '상위섹터롤업').length,
     rollupSession: rows.filter((r) => r.medianSource === '세션롤업').length,
     ratingBasis: rows.reduce((a, r) => { a[r.rating_basis] = (a[r.rating_basis] || 0) + 1; return a; }, {}),
     sectorBasis: rows.reduce((a, r) => { a[r.sector_basis] = (a[r.sector_basis] || 0) + 1; return a; }, {}),
   };
 
-  return { leaves, sectors, session, rows, stats };
+  return { cells, leaves, sectors, session, rows, stats };
 }
