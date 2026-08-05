@@ -265,3 +265,244 @@ test('빈 입력·잡음 입력에서 죽지 않는다', () => {
     assert.equal(res.demand.length, 0);
   }
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// 실데이터 이형 — tests/fixtures/kbond-sample.masked.txt (2026-08-05 원문 1일치)
+//
+// 위 합성 테스트는 §1.3~1.7 규칙을 검증한다. 이 절은 다르다: **실제 채팅에 나온 라인을
+// 그대로 박아 넣고**, 파서가 오늘 무엇을 하는지 고정한다. 일부는 의도한 동작이 아니라
+// **알려진 갭**(B-7·B-8·B-9)이며, 그 사실을 주석으로 명시한 채 현재 동작을 고정한다.
+// 갭을 고칠 때 이 테스트가 먼저 깨져 영향 범위를 드러내는 것이 목적이다.
+// 인용 라인은 마스킹 픽스처에서 발췌했다 — 이름·번호는 이미 더미다.
+// ══════════════════════════════════════════════════════════════════════════
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'kbond-sample.masked.txt');
+const fixtureText = readFileSync(FIXTURE, 'utf8');
+const fixture = parseRv2(fixtureText);
+
+// 발췌 라인을 메시지 1건으로 감싼다. 발화자·시각은 픽스처 형식과 동일한 더미.
+const asMessage = (line) => `트레이더01 (09:00:00) : ${line}`;
+const quoteOf = (line) => onlyQuote(asMessage(line));
+
+// ── 픽스처 무결성: 마스킹이 풀리면 여기서 먼저 죽는다 ────────────────────
+
+test('픽스처 PII 가드 — 마스킹되지 않은 연락처가 커밋 픽스처에 남으면 실패', () => {
+  // 더미는 마지막 그룹만 일련번호이고 앞 그룹은 전부 0 이다. 0 으로 시작하지 않는
+  // 전화번호 형태가 보이면 마스킹이 새로 생긴 이형을 놓쳤다는 뜻이다.
+  const hyphen = [...fixtureText.matchAll(/\b\d{2,4}-\d{3,4}-\d{4}\b|\b\d{3,4}-\d{4}\b/g)]
+    .map((m) => m[0]).filter((s) => !/^0+-/.test(s));
+  assert.deepEqual(hyphen, [], `하이픈형 미마스킹 번호: ${hyphen.slice(0, 5)}`);
+
+  // 점·공백형. 딜러태그 안만 본다 — 본문 숫자는 채권 데이터다.
+  // 더미 번호는 전부 0 으로 시작하므로, 0 이 아닌 것만 후보로 본다.
+  // `트레이더811` 같은 익명 발화자 토큰은 뒤 번호와 붙어 `811 0000` 처럼 보이므로 먼저 지운다.
+  const loose = [];
+  for (const tag of fixtureText.matchAll(/[[(]([^\])]+)[\])]/g)) {
+    for (const m of tag[1].replace(/트레이더\d+/g, ' ').matchAll(/\b\d{3,4}[.\s]\d{4}\b/g)) {
+      if (!/^0/.test(m[0])) loose.push(m[0]);
+    }
+  }
+  assert.deepEqual(loose, [], `점·공백형 미마스킹 번호: ${loose.slice(0, 5)}`);
+
+  const mails = [...fixtureText.matchAll(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g)]
+    .map((m) => m[0]).filter((s) => !s.endsWith('@example.com'));
+  assert.deepEqual(mails, [], `미마스킹 이메일: ${mails}`);
+});
+
+// ── 분류표 회귀 (Phase 0 보고 §5) ────────────────────────────────────────
+
+test('픽스처 분류표 — 보고 §5.0 수치를 고정한다', () => {
+  const s = fixture.stats;
+  assert.equal(s.total_lines, 5225);
+  assert.equal(s.system_messages, 994, '존댓말형 입·퇴장 포함. 이게 줄면 §2.2-B 방어가 샌 것');
+  assert.equal(s.messages, 3842);
+  assert.equal(s.quotes, 3596);
+  assert.equal(s.demand, 129, '구간 수요 레인 — NON_INDIVIDUAL_RE 가 버리던 라인들(§2.2-A)');
+  assert.equal(s.unclassified, 117);
+  assert.equal(s.cp_cd, 142);
+});
+
+test('픽스처 오프셋 — 보고 §5.0.1·필수행2 수치를 고정한다', () => {
+  const s = fixture.stats;
+  assert.equal(s.rankable, 932, '랭킹 가능 = 개별호가의 25.9%');
+  assert.equal(s.offset_missing, 2664);
+  assert.deepEqual(s.offset_missing_by_basis, {
+    won_unresolved: 457,
+    unknown: 2150,
+    no_minpyeong: 57,
+  });
+
+  const byBasis = {};
+  for (const q of fixture.quotes) {
+    if (q.offset_bp != null) byBasis[q.offset_basis] = (byBasis[q.offset_basis] || 0) + 1;
+  }
+  // under 186건은 rv-parser 에 없는 표현이다. RV-2 자체 처리가 없으면 전부 flat 0 으로 오인된다(B-1).
+  assert.deepEqual(byBasis, { explicit: 453, flat: 243, under: 186, over: 38, bp: 12 });
+});
+
+test('픽스처 필수행1 — 레벨 없는 개별 호가는 offset_basis=unknown 과 같은 모집단', () => {
+  const noLevel = fixture.quotes.filter((q) => q.actual_yield == null && q.offset_basis === 'unknown');
+  assert.equal(noLevel.length, 2150);
+  assert.equal(noLevel.length, fixture.stats.offset_missing_by_basis.unknown, '§5.1 등식');
+
+  // B-6 모집단: 레벨은 없는데 민평은 있다 → RV-1 폴백 flat 이 "민평에 판다"로 오인하는 라인.
+  // 개별호가의 50.9%. 이 수가 크다는 것이 B-6 을 1순위로 올린 근거다(보고 §5.1).
+  assert.equal(noLevel.filter((q) => q.minpyeong_yield != null).length, 1829);
+});
+
+// ── 오프셋 basis 별 실데이터 라인 ────────────────────────────────────────
+
+test('실데이터 — 언더N (rv-parser 미구현분을 RV-2 가 잡는다)', () => {
+  const q = quoteOf('28.1.3(월) 만기 중금(사) (민3.744%) 언더3 팔자 [DS FI금융 000-1027]');
+  assert.equal(q.offset_basis, 'under');
+  assert.equal(q.offset_bp, -3, '언더 = 민평보다 낮은 수익률 = 비싸게 팜 = 음수');
+  assert.equal(q.minpyeong_yield, 3.744);
+  assert.equal(q.side, 'offer');
+});
+
+test('실데이터 — 오버N, 민평이 대괄호 안에 있어도 읽는다', () => {
+  const q = quoteOf('30.3.25(월) 농금은행(상/후) [민 4.511] AA0 오버2 팔자 [케이프 인수금융팀 00-0000-1059]');
+  assert.equal(q.offset_basis, 'over');
+  assert.equal(q.offset_bp, 2);
+  assert.equal(q.minpyeong_yield, 4.511);
+  assert.equal(q.rating, 'AA0');
+});
+
+test('실데이터 — `..팔자` 와 `/ 민평 팔자` 는 명시 flat 으로 인정한다', () => {
+  const a = quoteOf('26.11.21(토) 우리은행 민3.045(끝.93원)..팔자  (수반) [리딩증권 FI솔루션 (00-0000-1038)]');
+  assert.equal(a.offset_basis, 'flat');
+  assert.equal(a.offset_bp, 0);
+  assert.equal(a.minpyeong_yield, 3.045);
+
+  const b = quoteOf('30.1.24 LG화학58-2 [민 4.372] (.90) AA0/AA+ 팔자 / 민평 팔자  (bgc 0000-1048)');
+  assert.equal(b.offset_basis, 'flat');
+  assert.equal(b.minpyeong_yield, 4.372);
+});
+
+test('실데이터 — `-4bp` 명시 표기', () => {
+  const q = quoteOf('35.10.22(월) 도로공사978 팔자 민 4.404 .2  100억   -4bp [다올 0000-1094/7]');
+  assert.equal(q.offset_basis, 'bp');
+  assert.equal(q.offset_bp, -4);
+  assert.equal(q.volume.total_eok, 100);
+});
+
+test('실데이터 — `+N원` 만 있고 결과 수익률이 없으면 결측 (듀레이션 환산 안 함)', () => {
+  const q = quoteOf('26.12.12 국은채 팔자 (민3.117 / .7원) [신한투자증권 0000-1018]');
+  assert.equal(q.offset_basis, 'won_unresolved');
+  assert.equal(q.offset_bp, null);
+  assert.equal(q.minpyeong_yield, 3.117);
+});
+
+// ── 체결마커·수량 ────────────────────────────────────────────────────────
+
+test('실데이터 — 단독 토큰 `동` 은 체결, 수량은 별개로 읽는다', () => {
+  const q = quoteOf('26.12.10 가스공사511  민평3.112  끝전06  +0.5원 3.099 팔자 100억 동 (KMB 트레이더811 0000-1061)');
+  assert.equal(q.status, 'traded');
+  assert.equal(q.actual_yield, 3.099);
+  assert.equal(q.volume.total_eok, 100);
+});
+
+test('실데이터 — `대치` 는 방향어가 없어도 호가로 남는다', () => {
+  const q = quoteOf('26.09.23 키움증권 전단채 100억 매도 > 2.98 // 3.01 대치 (KR투자증권/채권팀 0000-1019)');
+  assert.equal(q.status, 'matched_market');
+  assert.equal(q.is_cp_cd, true, '전단채 → 분류는 하되 랭킹 제외');
+});
+
+test('실데이터 — `50억*5장` 은 장수를 곱한다', () => {
+  const q = quoteOf('26.11.2 부산은행CD 팔자 50억*5장 [한화 0000-1021]');
+  assert.deepEqual(q.volume, { unit_eok: 50, lots: 5, total_eok: 250, raw: '50억*5장' });
+});
+
+// ── 구간 수요 (§3.3 사자 패널) ───────────────────────────────────────────
+
+test('실데이터 — 구간 수요는 호가 레인으로 새지 않는다', () => {
+  const r = parseRv2(asMessage('1~1.5년 증권사 사자 [신한 0000-1032]'));
+  assert.equal(r.quotes.length, 0, 'RV2_RANGE_RE 중화가 없으면 bond_code "1.5" 가 생겨 호가로 오분류된다');
+  assert.equal(r.demand.length, 1);
+  assert.deepEqual([r.demand[0].tenor_lo, r.demand[0].tenor_hi], [1, 1.5]);
+  assert.equal(r.demand[0].side, 'bid');
+});
+
+test('실데이터 — RWA 표기가 섞인 구간 수요', () => {
+  const [d] = parseRv2(asMessage('4~5년 RWA0 공사채 지방채 사자 [부국 채권전략 0000-1158]')).demand;
+  assert.deepEqual([d.tenor_lo, d.tenor_hi], [4, 5]);
+});
+
+test('실데이터 — `28년 초` 는 잔존이 아니라 달력 연도로 표시된다', () => {
+  const [d] = parseRv2(asMessage('28년 초 은행채사자 [신한 0000-1032]')).demand;
+  assert.equal(d.tenor_note, 'calendar');
+  assert.equal(d.tenor_lo, null);
+});
+
+// ── 노이즈 ───────────────────────────────────────────────────────────────
+
+test('실데이터 — 존댓말형 입·퇴장은 프리패스가 걷는다 (병합 오염 차단, §2.2-B)', () => {
+  const r = parseRv2(L(
+    '트레이더01 (09:00:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]',
+    '트레이더02님이 입장하셨습니다.',
+    '트레이더03님이 퇴장하였습니다.',
+  ));
+  assert.equal(r.quotes.length, 1);
+  assert.equal(r.quotes[0].offset_bp, -3);
+  assert.ok(!r.quotes[0].raw_line.includes('입장'), '병합돼 호가 라인에 붙으면 안 된다');
+});
+
+test('실데이터 — 채용공고는 미분류로 남되 버려지지 않는다', () => {
+  const r = parseRv2(asMessage('[흥국증권 FICC세일즈팀 채용공고] 1. 모집부문 : 채권 중개 및 인수'));
+  assert.equal(r.quotes.length, 0);
+  assert.equal(r.unclassified.length, 1);
+  assert.equal(r.unclassified[0].reason, '방향 없음');
+  assert.ok(r.unclassified[0].raw.includes('채용공고'), '원문 보존 — 사전 확장 피드백 루프');
+});
+
+// ── 알려진 갭: 현재 동작을 고정한다 (고칠 때 여기가 먼저 깨진다) ─────────
+
+test('B-7 갭 — parseMinpyeong 이 `민평 N`·`민:N` 표기를 놓친다 (현행 고정)', () => {
+  // 픽스처 198건. 인식하는 형태와 못 하는 형태를 나란히 둔다.
+  assert.equal(quoteOf('27.4.9 하나은행(민3.517, 끝.73) 팔자').minpyeong_yield, 3.517, '`민N` 은 인식');
+  assert.equal(quoteOf('28.1.10 중금(사) 언더3 팔자 (민3.751)').minpyeong_yield, 3.751, '`(민N)` 은 인식');
+
+  // ↓ 전부 원문에 민평이 있는데 null 이 된다. 고치면 이 세 줄이 깨진다 — 그게 신호다.
+  assert.equal(quoteOf('26.12.10 가스공사511  민평3.112  끝전06  팔자 100억').minpyeong_yield, null, '`민평N` 미인식');
+  assert.equal(quoteOf('27.2.4(목) 중금채 (민평 3.242%/ 끝.91/ 쿠폰 2.88%) 팔자').minpyeong_yield, null, '`민평 N` 미인식');
+  assert.equal(quoteOf('27.8.27(금) SBS14-2 (민:3.957% / 끝.79 / AA ) 민 팔자').minpyeong_yield, null, '`민:N` 미인식');
+
+  const gap = fixture.quotes.filter((q) => q.minpyeong_yield == null && /민\s*평?\s*[:：]?\s*\d\.\d{2,4}/.test(q.raw_line));
+  assert.equal(gap.length, 198, '픽스처 실측 — 줄어들면 B-7 이 개선된 것');
+});
+
+test('B-8 갭 — parseActualYield 가 `3.602팔자`(공백 없음)를 놓친다 (현행 고정)', () => {
+  const q = quoteOf('27.8.3  중금채  민3.610(끝전.3).. 민+1원 3.602팔자 (SK 0000-1025)');
+  assert.equal(q.minpyeong_yield, 3.61);
+  assert.equal(q.actual_yield, null, '공백이 있으면 3.602 를 잡는다. 붙으면 놓친다');
+  assert.equal(q.offset_basis, 'won_unresolved', '인식되면 explicit / −0.8bp 가 되어야 할 관측');
+
+  const gap = fixture.quotes.filter((x) => x.actual_yield == null && /\d\.\d{2,4}(?:팔자|사자)/.test(x.raw_line));
+  assert.equal(gap.length, 43, '픽스처 실측');
+});
+
+test('B-9 갭 — 만기 없는 `3.30 팔자` 에서 방어가 레벨을 지운다 (RV-2 자체 결함, 현행 고정)', () => {
+  const q = quoteOf('3.30 팔자 (한양증권 00-0000-1084)');
+  // parseMaturity 가 `3.30` 을 2026-03-30(confidence low)으로 오인 → 방어가 그 문자열을
+  // 가격 파서 입력에서 제거 → 유일한 레벨이 사라진다.
+  assert.equal(q.maturity_confidence, 'low');
+  assert.equal(q.actual_yield, null);
+  assert.equal(q.offset_basis, 'unknown');
+
+  // 과거 만기가 붙은 호가는 이 오탐의 관측 가능한 흔적이다.
+  const past = fixture.quotes.filter((x) => x.maturity_date && x.maturity_date < '2026-08-05');
+  assert.equal(past.length, 11, '픽스처 실측 — B-9 수정 시 줄어야 한다');
+});
+
+test('갭 — parseBroker 는 점·공백 구분 번호를 딜러 ID 로 잡지 못한다 (현행 고정)', () => {
+  const withHyphen = quoteOf('28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]');
+  assert.equal(withHyphen.dealer_phone, '0000-1021');
+
+  const withDot = quoteOf('27.4.9 하나은행(민3.517, 끝.73) 팔자 [케이프 채권투자 0000.1010]');
+  assert.equal(withDot.dealer_phone, null, '전화번호가 딜러 ID 인데 폴백이 브로커명으로 내려간다');
+  assert.ok(withDot.broker, '브로커명은 남아 중복제거가 완전히 무너지지는 않는다');
+});
