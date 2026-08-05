@@ -397,9 +397,17 @@ test('픽스처 — RWA 3분할 후에도 n<8 리프는 1개(관측 1건)뿐 →
   assert.equal(fx.stats.cellsUnderGuard, 9);
   assert.equal(fx.stats.observationsUnderGuard, 30, '칸 미달 관측 = 전체의 3.0%');
   assert.equal(fx.stats.rollupCell, 965);
-  assert.equal(fx.stats.rollupLeaf, 40, '칸 미달 30 + 만기 미상 10');
+  // 섹터 롤업 40 = 만기 미상 11(특은 10 + 지방채 1) + 칸 미달 29.
+  // 칸 미달은 30건이지만 그중 1건(지방은행 · ~1y)은 리프·섹터도 n=1 이라 세션까지 내려간다.
+  assert.equal(fx.stats.rollupLeaf, 40);
   assert.equal(fx.stats.rollupSector, 0);
-  assert.equal(fx.stats.rollupSession, 1);
+  assert.equal(fx.stats.rollupSession, 1, '지방은행 — 칸·리프·섹터 모두 n=1');
+
+  const noCell = fx.rows.filter((r) => !RANKING_EXCLUDED_SECTORS.has(r.sector) && !r.cell);
+  assert.equal(noCell.length, 11, '만기 미상 총계');
+  assert.deepEqual(noCell.reduce((a, r) => { a[r.leaf] = (a[r.leaf] || 0) + 1; return a; }, {}),
+    { 특은: 10, 지방채: 1 });
+  assert.ok(noCell.every((r) => r.medianSource === '섹터롤업'), '만기 미상은 전부 섹터로 롤업');
 });
 
 test('픽스처 — 특은 3칸 중앙값이 실측표와 일치한다 (v1.2 승격 근거)', () => {
