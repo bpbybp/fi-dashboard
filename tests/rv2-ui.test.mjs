@@ -4,9 +4,13 @@
 // DOM 을 건드리는 렌더 함수는 여기서 다루지 않는다(모듈 최상위에 DOM 접근이 없어 import 가능).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import {
-  accumulate, currentQuotes, todayKey, bucketDemand,
+  accumulate, currentQuotes, todayKey, bucketDemand, sessionCounts,
+  demandKey, unclassifiedKey, mergeKeyed,
   TENOR_KEYS, TENOR_UNKNOWN, tenorKeyOf, tenorCounts, applyTenorFilter, tenorGroupsOf,
 } from '../js/rv2-ui.js';
 import { buildBuckets, RV2_TENOR_GRID } from '../js/rv2-buckets.js';
@@ -21,22 +25,25 @@ test('todayKey — 로컬 날짜를 쓴다 (UTC 로 자르면 오전 9시 이전
   assert.equal(todayKey(new Date(2026, 0, 9, 23, 30, 0)), '2026-01-09', '한 자리 월·일 0 패딩');
 });
 
-test('§1.7 — 같은 레벨 재게시는 관측을 늘리지 않는다 (광고 반복)', () => {
+test('§1.7 — 같은 시각·같은 레벨은 재붙여넣기로 보고 스킵한다', () => {
   const s = emptySession();
-  const q = quotesOf('트레이더01 (09:00:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]');
-  assert.equal(accumulate(s, q).added, 1);
-
-  // 같은 딜러·같은 종목·같은 레벨을 30분 뒤 다시 던졌다.
-  const again = quotesOf('트레이더01 (09:30:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]');
-  const c = accumulate(s, again);
-  assert.deepEqual(c, { added: 0, appended: 0, repeated: 1 });
-
-  const inst = Object.values(s.instruments)[0];
-  assert.equal(inst.observations.length, 1, '관측은 하나');
-  assert.equal(inst.observations[0].timestamp, '09:00:00', '최초 시각은 유지한다');
-  assert.equal(inst.observations[0].last_seen, '09:30:00', 'last_seen 만 갱신');
+  const line = '트레이더01 (09:00:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]';
+  assert.equal(accumulate(s, quotesOf(line)).added, 1);
+  // 같은 원문을 다시 붙여넣었다 — 시각도 레벨도 같다.
+  assert.deepEqual(accumulate(s, quotesOf(line)), { added: 0, appended: 0, repeated: 1 });
+  assert.equal(Object.values(s.instruments)[0].observations.length, 1);
 });
 
+test('§1.7 — 같은 레벨이라도 시각이 다르면 관측으로 쌓는다 (호가가 살아 있다는 관측)', () => {
+  const s = emptySession();
+  accumulate(s, quotesOf('트레이더01 (09:00:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]'));
+  const c = accumulate(s, quotesOf('트레이더01 (09:30:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]'));
+  assert.deepEqual(c, { added: 0, appended: 1, repeated: 0 });
+  const inst = Object.values(s.instruments)[0];
+  assert.equal(inst.observations.length, 2);
+  // 관측은 2건이지만 **레벨 변동은 0건**이다 — 둘을 섞어 세면 수명주기를 오해한다.
+  assert.equal(sessionCounts(s).levelChanged, 0);
+});
 test('§1.7 — 레벨이 바뀌면 덮어쓰지 않고 관측을 쌓는다 (수명주기 데이터)', () => {
   const s = emptySession();
   accumulate(s, quotesOf('트레이더01 (09:00:00) : 28.1.10 중금(사) 언더3 팔자 (민3.751) [한화 0000-1021]'));
@@ -202,4 +209,77 @@ test('tenorGroupsOf — 그룹 내 정렬은 조정오프셋 내림차순 (리�
   // 같은 리프 안에서는 버킷 중앙값이 상수라 두 정렬이 같은 순서를 준다 — 순위 의미론 불변.
   const g = tenorGroupsOf([row('1-2', -1), row('1-2', 5), row('1-2', 2)]);
   assert.deepEqual(g[0].rows.map((r) => r.adjustedOffset), [5, 2, -1]);
+});
+
+// ── Phase 4 회귀: 붙여넣기 시나리오 4종의 최종 상태 동일성 ──────────────
+//
+// 장중 수시 복사가 기본 워크플로다. 어떻게 잘라 붙이든 최종 상태가 같아야 한다.
+// 2026-08-05 실측에서 겹치는 재복사가 관측을 이중 계상하던 것을 고친 뒤 고정한다.
+
+const FIXTURE_PATH = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'kbond-sample.masked.txt');
+const FIXTURE = readFileSync(FIXTURE_PATH, 'utf8');
+
+function runPastes(...texts) {
+  const s = emptySession();
+  for (const t of texts) {
+    const r = parseRv2(t);
+    accumulate(s, r.quotes);
+    mergeKeyed(s.demand, r.demand, demandKey);
+    mergeKeyed(s.unclassified, r.unclassified, unclassifiedKey);
+  }
+  return { ...sessionCounts(s), demand: s.demand.length, unclassified: s.unclassified.length };
+}
+
+test('붙여넣기 4종 — 일괄 / 3분할 / 동일 2회 / 겹침이 모두 같은 최종 상태', () => {
+  const L = FIXTURE.split('\n');
+  const a = Math.floor(L.length / 3), b = Math.floor((L.length * 2) / 3);
+  const c1 = L.slice(0, a).join('\n'), c2 = L.slice(a, b).join('\n'), c3 = L.slice(b).join('\n');
+  const twoThirds = L.slice(0, b).join('\n');
+
+  const whole = runPastes(FIXTURE);
+  assert.deepEqual(whole, {
+    quotes: 957, observations: 3596, levelChanged: 168, demand: 129, unclassified: 117,
+  }, '기준 상태 — 관측은 메시지 단위, 레벨 변동은 별개 지표');
+
+  assert.deepEqual(runPastes(c1, c2, c3), whole, '3분할 순차');
+  assert.deepEqual(runPastes(FIXTURE, FIXTURE), whole, '동일 원문 2회');
+  assert.deepEqual(runPastes(twoThirds, FIXTURE), whole, '겹치는 창 재복사');
+  assert.deepEqual(runPastes(c1, c1, c2, FIXTURE, c3), whole, '뒤죽박죽 중복');
+});
+
+test('§1.7 — A→B→A 레벨 회귀는 관측으로 남는다 (되돌린 사실이 정보다)', () => {
+  const s = emptySession();
+  const at = (t, u) => `트레이더01 (${t}) : 28.1.10 중금(사) 언더${u} 팔자 (민3.751) [한화 0000-1021]`;
+  accumulate(s, quotesOf(at('09:00:00', 3)));
+  accumulate(s, quotesOf(at('10:00:00', 1)));
+  const back = accumulate(s, quotesOf(at('11:00:00', 3))); // 원래 레벨로 회귀
+  assert.deepEqual(back, { added: 0, appended: 1, repeated: 0 }, '마지막 관측만 보면 놓치는 케이스');
+
+  const inst = Object.values(s.instruments)[0];
+  assert.deepEqual(inst.observations.map((o) => o.q.offset_bp), [-3, -1, -3]);
+  assert.equal(inst.latest.offset_bp, -3);
+  assert.equal(sessionCounts(s).levelChanged, 1, '서로 다른 레벨이 2종 이상 = 변동 있음');
+
+  // 그 상태에서 전체를 재붙여넣어도 늘지 않는다.
+  const again = accumulate(s, quotesOf(at('09:00:00', 3), at('10:00:00', 1), at('11:00:00', 3)));
+  assert.deepEqual(again, { added: 0, appended: 0, repeated: 3 });
+  assert.equal(inst.observations.length, 3);
+});
+
+test('수요·미분류 중복 키 — 딜러·발화자 + 시각 + 원문', () => {
+  const d1 = { dealer_phone: '0000-1021', timestamp: '09:00:00', raw_line: '2년  산금  사자' };
+  const d1ws = { ...d1, raw_line: '2년 산금 사자' }; // 공백만 다름 → 같은 수요
+  const d2 = { ...d1, timestamp: '10:00:00' };       // 시각만 다름 → 별개 관측(수요 지속)
+  const d3 = { ...d1, dealer_phone: '0000-9999' };   // 딜러만 다름 → 별개
+  const list = [];
+  assert.equal(mergeKeyed(list, [d1, d1ws], demandKey), 1, '공백 차이는 같은 수요');
+  assert.equal(mergeKeyed(list, [d2], demandKey), 1, '시각이 다르면 수요 지속의 실측이므로 남긴다');
+  assert.equal(mergeKeyed(list, [d3], demandKey), 1, '딜러가 다르면 별개');
+  assert.equal(mergeKeyed(list, [d1, d2, d3], demandKey), 0, '재붙여넣기는 전부 스킵');
+  assert.equal(list.length, 3);
+
+  const u = { trader_name: '트레이더01', timestamp: '09:00:00', raw: '[채용공고] 어쩌고' };
+  const ulist = [];
+  assert.equal(mergeKeyed(ulist, [u, { ...u }], unclassifiedKey), 1);
+  assert.equal(mergeKeyed(ulist, [{ ...u, timestamp: '09:05:00' }], unclassifiedKey), 1);
 });
