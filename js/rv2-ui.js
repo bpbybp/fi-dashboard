@@ -16,7 +16,7 @@
 //   이상치는 **색상으로만** 표시한다. "싸다/비싸다/잡을 만하다" 같은 판단 텍스트를 쓰지 않는다.
 
 import { parseRv2, instrumentKey, levelKey } from './rv2-parser.js';
-import { buildBuckets, RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K } from './rv2-buckets.js';
+import { buildBuckets, RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K, RV2_TENOR_GRID } from './rv2-buckets.js';
 
 const LS_SESSION = 'rv2-session';
 const LS_THEME = 'rv2-theme';
@@ -106,8 +106,8 @@ function render() {
   }
   $('rv2-summary').innerHTML = renderSummary(quotes);
   $('rv2-ranking').innerHTML = renderRanking(quotes);
-  $('rv2-demand').innerHTML = '';    // Phase 3-3
-  $('rv2-unclassified').innerHTML = ''; // Phase 3-3
+  $('rv2-demand').innerHTML = renderDemand(SESSION.demand);
+  $('rv2-unclassified').innerHTML = renderUnclassified(SESSION.unclassified);
 }
 
 /**
@@ -233,6 +233,94 @@ function rankTable(list) {
     <th class="num">민평%</th><th class="num">오프셋</th><th class="num">조정</th>
     <th>산출근거</th><th>수량</th><th>브로커</th>
   </tr></thead><tbody>${trs}</tbody></table>`;
+}
+
+// ── 사자 수요 패널 (§3.3) ────────────────────────────────────────────────
+
+/**
+ * 구간 수요를 **연 단위 격자**로 집계한다.
+ *
+ * 이 레인이 따로 있는 이유: 기저 파서의 `NON_INDIVIDUAL_RE` 가 "1.5년 특은 사자" 류를
+ * 일반관심으로 버리는데, RV-2 에선 **버리는 대상이 곧 수요 신호**다(§2.2-A).
+ * 실측에서도 개별 호가는 offer 3,553 : bid 43 으로 사실상 전부 매도라, 매수 측 정보는
+ * 여기 말고는 없다.
+ *
+ * 격자 배정은 구간이 겹치는 칸 **전부**에 센다 — "2~3년 사자"는 2-3 한 칸이지만
+ * "1~5년 사자"는 1-2·2-3·3-5 세 칸에 수요가 있다. 한 칸으로 접으면 정보가 준다.
+ */
+export function bucketDemand(demand) {
+  const grid = RV2_TENOR_GRID.map((g) => ({ ...g, bid: 0, offer: 0, other: 0 }));
+  let unplaced = 0;
+  for (const d of demand || []) {
+    if (d.tenor_lo == null && d.tenor_hi == null) { unplaced++; continue; }
+    // 격자는 반열린 구간 [lo, hi) 다. 수요 구간도 같은 규약으로 본다:
+    //   tenor_hi === null 은 **상한 개방**("3년 이후")이지 점이 아니다.
+    //   tenor_lo === null 은 하한 개방("1년 이내" → parseTenorSpan 이 0 을 준다).
+    const a = d.tenor_lo == null ? 0 : d.tenor_lo;
+    const b = d.tenor_hi == null ? Infinity : d.tenor_hi;
+    let hit = false;
+    for (const g of grid) {
+      // 겹침 판정은 `b > g.lo` (등호 없음). "1~5년" 의 상한 5 가 5-10 칸으로 넘치면 안 된다.
+      if (a < g.hi && b > g.lo) {
+        hit = true;
+        if (d.side === 'bid') g.bid++; else if (d.side === 'offer') g.offer++; else g.other++;
+      }
+    }
+    if (!hit) unplaced++;
+  }
+  return { grid, unplaced };
+}
+
+function renderDemand(demand) {
+  if (!demand || !demand.length) return '';
+  const { grid, unplaced } = bucketDemand(demand);
+  const max = Math.max(1, ...grid.map((g) => g.bid + g.offer + g.other));
+  const cells = grid.map((g) => {
+    const n = g.bid + g.offer + g.other;
+    const w = Math.round((n / max) * 100);
+    return `<tr>
+      <td class="mono">${g.key}</td>
+      <td class="num">${g.bid || '—'}</td>
+      <td class="num">${g.offer || '—'}</td>
+      <td style="width:55%"><div style="background:var(--accent);height:9px;border-radius:3px;width:${w}%"></div></td>
+    </tr>`;
+  }).join('');
+
+  const lines = demand.slice(-40).reverse().map((d) => {
+    const span = d.tenor_lo == null && d.tenor_hi == null ? (d.tenor_note || '구간미상')
+      : d.tenor_lo === d.tenor_hi ? `${d.tenor_lo}y` : `${d.tenor_lo ?? '~'}–${d.tenor_hi ?? '+'}y`;
+    return `<div class="excluded-line"><span class="why">[${esc(span)}]</span>${esc(d.raw_line).slice(0, 90)}</div>`;
+  }).join('');
+
+  return `<div class="sec-title">사자 수요 <span class="cap">구간 수요 ${demand.length}건 · 연 단위 격자 ·
+    구간이 걸치는 칸에 모두 집계(합계 ≠ 건수)</span></div>
+    <div class="panel">
+      <table class="q"><thead><tr><th>구간</th><th class="num">사자</th><th class="num">팔자</th><th></th></tr></thead>
+      <tbody>${cells}</tbody></table>
+      ${unplaced ? `<div class="footnote" style="margin-top:8px">구간 미배정 <b>${unplaced}</b>건 —
+        "7영업일 이내"·"국전전 사자관심" 처럼 연 단위 표현이 없는 라인</div>` : ''}
+      <details style="margin-top:10px"><summary style="cursor:pointer;color:var(--muted);font-size:12px">원문 최근 ${Math.min(40, demand.length)}건 펼치기</summary>${lines}</details>
+    </div>`;
+}
+
+// ── 미분류 패널 ──────────────────────────────────────────────────────────
+
+/**
+ * 미분류는 **버리지 않고 원문 그대로 남긴다** — 사전 확장 피드백 루프의 입력이다.
+ * 다만 기본은 접어 둔다. 사유별 카운트가 1차 표시이고 원문은 펼쳐야 나온다.
+ */
+function renderUnclassified(list) {
+  if (!list || !list.length) return '';
+  const byReason = list.reduce((a, u) => { a[u.reason] = (a[u.reason] || 0) + 1; return a; }, {});
+  const summary = Object.entries(byReason).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${esc(k)} <b>${v}</b>`).join(' · ');
+  const lines = list.slice(-60).reverse().map((u) =>
+    `<div class="excluded-line"><span class="why">[${esc(u.reason)}]</span>${esc(u.raw).slice(0, 110)}</div>`).join('');
+  return `<div class="sec-title">미분류 <span class="cap">버리지 않고 원문 보존 · 사전 확장 피드백 루프</span></div>
+    <div class="panel">
+      <div class="footnote">${summary}</div>
+      <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:12px">원문 최근 ${Math.min(60, list.length)}건 펼치기</summary>${lines}</details>
+    </div>`;
 }
 
 // ── 이벤트 ───────────────────────────────────────────────────────────────

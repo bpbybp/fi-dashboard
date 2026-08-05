@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { accumulate, currentQuotes, todayKey } from '../js/rv2-ui.js';
+import { accumulate, currentQuotes, todayKey, bucketDemand } from '../js/rv2-ui.js';
 import { parseRv2 } from '../js/rv2-parser.js';
 
 const emptySession = () => ({ dateKey: '2026-08-05', instruments: {}, demand: [], unclassified: [] });
@@ -80,4 +80,49 @@ test('currentQuotes — instrument 당 최신 1건만 돌려준다', () => {
   const cur = currentQuotes(s);
   assert.equal(cur.length, 1);
   assert.equal(cur[0].offset_bp, -1);
+});
+
+// ── 사자 수요 격자 (§3.3) ───────────────────────────────────────────────
+
+const gridOf = (r) => Object.fromEntries(r.grid.map((g) => [g.key, g.bid]));
+
+test('수요 격자 — 구간이 걸치는 칸에 모두 센다 (한 칸으로 접지 않는다)', () => {
+  // "1~5년 사자" 는 1-2·2-3·3-5 세 칸 모두에 수요가 있다. 한 칸으로 접으면 정보가 준다.
+  const r = bucketDemand([{ tenor_lo: 1, tenor_hi: 5, side: 'bid' }]);
+  assert.deepEqual(gridOf(r), { '~1y': 0, '1-2': 1, '2-3': 1, '3-5': 1, '5-10': 0, '10y+': 0 });
+  assert.equal(r.unplaced, 0);
+});
+
+test('수요 격자 — 점 구간(1.5년)은 한 칸에만 들어간다', () => {
+  assert.deepEqual(gridOf(bucketDemand([{ tenor_lo: 1.5, tenor_hi: 1.5, side: 'bid' }])),
+    { '~1y': 0, '1-2': 1, '2-3': 0, '3-5': 0, '5-10': 0, '10y+': 0 });
+});
+
+test('수요 격자 — 상한 없는 "3년 이후" 는 3-5 부터 끝까지 센다', () => {
+  assert.deepEqual(gridOf(bucketDemand([{ tenor_lo: 3, tenor_hi: null, side: 'bid' }])),
+    { '~1y': 0, '1-2': 0, '2-3': 0, '3-5': 1, '5-10': 1, '10y+': 1 });
+});
+
+test('수요 격자 — "1년 이내" 는 ~1y 한 칸만 (상한이 칸 하한과 같으면 넘치지 않는다)', () => {
+  assert.deepEqual(gridOf(bucketDemand([{ tenor_lo: 0, tenor_hi: 1, side: 'bid' }])),
+    { '~1y': 1, '1-2': 0, '2-3': 0, '3-5': 0, '5-10': 0, '10y+': 0 });
+});
+
+test('수요 격자 — 방향별로 나눠 센다', () => {
+  const r = bucketDemand([
+    { tenor_lo: 2, tenor_hi: 3, side: 'bid' },
+    { tenor_lo: 2, tenor_hi: 3, side: 'offer' },
+  ]);
+  const g = r.grid.find((x) => x.key === '2-3');
+  assert.equal(g.bid, 1);
+  assert.equal(g.offer, 1);
+});
+
+test('수요 격자 — 연 단위 표현이 없으면 미배정으로 센다 (버리지 않는다)', () => {
+  const r = bucketDemand([
+    { tenor_lo: null, tenor_hi: null, tenor_note: null, side: 'bid' },   // "국전전 사자관심"
+    { tenor_lo: null, tenor_hi: null, tenor_note: 'calendar', side: 'bid' }, // "28년 초"
+  ]);
+  assert.equal(r.unplaced, 2);
+  assert.deepEqual(gridOf(r), { '~1y': 0, '1-2': 0, '2-3': 0, '3-5': 0, '5-10': 0, '10y+': 0 });
 });
