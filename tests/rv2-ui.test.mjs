@@ -5,7 +5,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { accumulate, currentQuotes, todayKey, bucketDemand } from '../js/rv2-ui.js';
+import {
+  accumulate, currentQuotes, todayKey, bucketDemand,
+  TENOR_KEYS, TENOR_UNKNOWN, tenorKeyOf, tenorCounts, applyTenorFilter, tenorGroupsOf,
+} from '../js/rv2-ui.js';
+import { buildBuckets, RV2_TENOR_GRID } from '../js/rv2-buckets.js';
 import { parseRv2 } from '../js/rv2-parser.js';
 
 const emptySession = () => ({ dateKey: '2026-08-05', instruments: {}, demand: [], unclassified: [] });
@@ -125,4 +129,77 @@ test('수요 격자 — 연 단위 표현이 없으면 미배정으로 센다 (�
   ]);
   assert.equal(r.unplaced, 2);
   assert.deepEqual(gridOf(r), { '~1y': 0, '1-2': 0, '2-3': 0, '3-5': 0, '5-10': 0, '10y+': 0 });
+});
+
+// ── 만기구간 표시 계층 (v1.1) ───────────────────────────────────────────
+//
+// 핵심 불변식: **필터는 표시만 거른다.** 버킷 중앙값·MAD·이상치·n 은 리프 전체 기준이며
+// 필터와 무관하다(Phase 2 결정 "만기는 통계 축이 아니다" 유지).
+
+const row = (tenor, adj, extra = {}) => ({ tenor, adjustedOffset: adj, rating_basis: 'unknown', ...extra });
+
+test('격자는 rv2-buckets 단일 소스를 재사용한다 (UI 재정의 금지)', () => {
+  assert.deepEqual(TENOR_KEYS, [...RV2_TENOR_GRID.map((g) => g.key), '미상']);
+  assert.equal(TENOR_UNKNOWN, '미상');
+});
+
+test('tenorKeyOf — 만기 미상(B-9 잔여)은 숨기지 않고 미상 칸으로 보낸다', () => {
+  assert.equal(tenorKeyOf({ tenor: '2-3' }), '2-3');
+  assert.equal(tenorKeyOf({ tenor: null }), '미상');
+  assert.equal(tenorKeyOf({}), '미상');
+});
+
+test('tenorCounts — 0인 구간은 담지 않는다 (헤더 미니 카운트가 0을 생략한다)', () => {
+  const c = tenorCounts([row('~1y', 1), row('~1y', 2), row('2-3', 3), row(null, 4)]);
+  assert.deepEqual(c, { '~1y': 2, '2-3': 1, 미상: 1 });
+  assert.ok(!('1-2' in c));
+});
+
+test('applyTenorFilter — 빈 집합은 전체 표시(필터 없음)', () => {
+  const rows = [row('~1y', 1), row('2-3', 2)];
+  assert.equal(applyTenorFilter(rows, new Set()).length, 2);
+  assert.equal(applyTenorFilter(rows, null).length, 2);
+});
+
+test('applyTenorFilter — 복수 선택이 OR 로 동작하고 미상도 고를 수 있다', () => {
+  const rows = [row('~1y', 1), row('1-2', 2), row('2-3', 3), row(null, 4)];
+  assert.deepEqual(applyTenorFilter(rows, new Set(['~1y', '2-3'])).map((r) => r.adjustedOffset), [1, 3]);
+  assert.deepEqual(applyTenorFilter(rows, new Set(['미상'])).map((r) => r.adjustedOffset), [4]);
+});
+
+test('필터는 표시만 거른다 — 통계 모집단(n·중앙값·MAD)은 건드리지 않는다', () => {
+  // 이 테스트가 v1.1 의 핵심 계약이다. buildBuckets 입력은 필터 전 전체여야 한다.
+  const quotes = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((v, i) => ({
+    issuer_raw: '중금채', offset_bp: v, is_cp_cd: false, rating: null,
+    maturity_date: i < 5 ? '2027-01-01' : '2031-01-01', side: 'offer',
+  }));
+  const { leaves, rows } = buildBuckets(quotes, { todayStr: '2026-08-05' });
+  const b = leaves.get('특은');
+  assert.equal(b.n, 9);
+  assert.equal(b.median, 5);
+
+  // 표시를 한 구간으로 좁혀도 위 값은 그대로다 — 필터는 rows 만 자른다.
+  const shown = applyTenorFilter(rows, new Set(['~1y']));
+  assert.ok(shown.length < rows.length, '표시 건수는 줄어든다');
+  assert.equal(leaves.get('특은').n, 9, 'n 불변');
+  assert.equal(leaves.get('특은').median, 5, '중앙값 불변');
+  assert.equal(leaves.get('특은').mad, b.mad, 'MAD 불변');
+  // 이상치 판정도 전체 기준으로 이미 붙어 있다.
+  assert.deepEqual(shown.map((r) => r.outlier), shown.map(() => false));
+});
+
+test('tenorGroupsOf — 격자 순서대로, 미상은 마지막', () => {
+  const g = tenorGroupsOf([row('10y+', 1), row(null, 2), row('~1y', 3), row('2-3', 4)]);
+  assert.deepEqual(g.map((x) => x.key), ['~1y', '2-3', '10y+', '미상']);
+});
+
+test('tenorGroupsOf — 관측이 없는 구간은 그룹 자체가 없다', () => {
+  const g = tenorGroupsOf([row('2-3', 1)]);
+  assert.deepEqual(g.map((x) => x.key), ['2-3']);
+});
+
+test('tenorGroupsOf — 그룹 내 정렬은 조정오프셋 내림차순 (리프 안에선 offset_bp 순과 동일)', () => {
+  // 같은 리프 안에서는 버킷 중앙값이 상수라 두 정렬이 같은 순서를 준다 — 순위 의미론 불변.
+  const g = tenorGroupsOf([row('1-2', -1), row('1-2', 5), row('1-2', 2)]);
+  assert.deepEqual(g[0].rows.map((r) => r.adjustedOffset), [5, 2, -1]);
 });

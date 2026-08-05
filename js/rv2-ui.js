@@ -20,6 +20,7 @@ import { buildBuckets, RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K, RV2_TENOR_GRID } from '
 
 const LS_SESSION = 'rv2-session';
 const LS_THEME = 'rv2-theme';
+const LS_VIEW = 'rv2-view'; // 표시 옵션(만기 필터 등). 세션 데이터와 분리한다.
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => (
@@ -143,6 +144,82 @@ function renderSummary(quotes) {
   ${missing.length ? `<div class="footnote" style="margin-top:8px">오프셋 미상 사유: ${reasons}</div>` : ''}`;
 }
 
+// ── 만기구간 표시 계층 (v1.1) ────────────────────────────────────────────
+//
+// **표시만 거른다.** 버킷 중앙값·MAD·이상치 판정·n 은 섹터 리프 **전체** 기준으로 산출되고
+// 필터와 무관하게 불변이다. Phase 2 결정("만기는 통계 축이 아니다")을 그대로 유지한다.
+// 필터가 켜지면 헤더에 `표시 N / 전체 n` 을 적어 **모집단과 표시 건수를 구분**한다.
+
+/** 만기 미상(B-9 잔여) 그룹 라벨. 격자에 올릴 수 없는 관측을 숨기지 않고 별도 칸으로 둔다. */
+export const TENOR_UNKNOWN = '미상';
+
+/** 격자 정의는 rv2-buckets 단일 소스를 재사용한다 — UI 에서 재정의하지 않는다. */
+export const TENOR_KEYS = [...RV2_TENOR_GRID.map((g) => g.key), TENOR_UNKNOWN];
+
+/** 관측의 표시용 만기 키. rv2-buckets 가 붙인 tenor 를 그대로 쓰고, 없으면 '미상'. */
+export const tenorKeyOf = (r) => r.tenor || TENOR_UNKNOWN;
+
+/** 만기구간별 건수. 0인 구간은 담지 않는다(헤더 미니 카운트가 0을 생략하기 위함). */
+export function tenorCounts(rows) {
+  const out = {};
+  for (const r of rows) {
+    const k = tenorKeyOf(r);
+    out[k] = (out[k] || 0) + 1;
+  }
+  return out;
+}
+
+/** 필터 적용. 빈 집합 = 전체 표시(필터 없음)로 본다. */
+export function applyTenorFilter(rows, active) {
+  if (!active || !active.size) return rows;
+  return rows.filter((r) => active.has(tenorKeyOf(r)));
+}
+
+/**
+ * 만기구간별 소그룹. **격자 순서**로 돌려주고 '미상'은 항상 마지막이다.
+ * 그룹 내 정렬은 조정오프셋 내림차순 — 같은 리프 안에서는 중앙값이 상수라
+ * offset_bp 내림차순과 결과가 동일하다(순위 의미론 불변).
+ */
+export function tenorGroupsOf(rows) {
+  const byKey = new Map();
+  for (const r of rows) {
+    const k = tenorKeyOf(r);
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(r);
+  }
+  return TENOR_KEYS
+    .filter((k) => byKey.has(k))
+    .map((k) => ({ key: k, rows: byKey.get(k).sort((a, b) => b.adjustedOffset - a.adjustedOffset) }));
+}
+
+let TENOR_FILTER = new Set();
+
+function loadView() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LS_VIEW) || 'null');
+    if (v && Array.isArray(v.tenors)) TENOR_FILTER = new Set(v.tenors.filter((k) => TENOR_KEYS.includes(k)));
+  } catch { TENOR_FILTER = new Set(); }
+}
+function saveView() {
+  try { localStorage.setItem(LS_VIEW, JSON.stringify({ kind: LS_VIEW, version: 1, tenors: [...TENOR_FILTER] })); }
+  catch { /* noop */ }
+}
+
+function renderTenorChips(allRows) {
+  const counts = tenorCounts(allRows);
+  const chips = TENOR_KEYS.map((k) => {
+    const n = counts[k] || 0;
+    const on = TENOR_FILTER.has(k);
+    return `<button class="chip${on ? ' on' : ''}${n ? '' : ' zero'}" data-tenor="${esc(k)}" type="button">${esc(k)}<span class="c-n">${n}</span></button>`;
+  }).join('');
+  const active = TENOR_FILTER.size;
+  return `<div class="chips">
+    <span class="chips-label">만기구간</span>${chips}
+    <button class="chip chip-reset${active ? '' : ' zero'}" data-tenor="__all" type="button">전체</button>
+    <span class="chips-note">${active ? '표시만 거릅니다 — 중앙값·MAD·이상치·n 은 리프 전체 기준 불변' : ''}</span>
+  </div>`;
+}
+
 // ── 버킷 드릴다운 랭킹 ───────────────────────────────────────────────────
 
 const fmt = (x, d = 2) => (x == null ? '—' : x.toFixed(d));
@@ -179,32 +256,52 @@ function renderRanking(quotes) {
       중앙값 <b>${signed(session.median)}</b>bp · MAD <b>${fmt(session.mad)}</b> ·
       표본 가드 n&lt;${RV2_MIN_BUCKET_SAMPLE} → 상위 롤업 · 이상치 |Δ|&gt;${RV2_MAD_K}×MAD</div>`;
 
+  let hiddenBuckets = 0;
   const blocks = [...byLeaf.entries()]
     .sort((a, b) => b[1].length - a[1].length)
     .map(([leaf, list]) => {
       const b = leaves.get(leaf) || { n: 0, median: null, mad: null, missing: 0 };
+      // 등급 분해·미니 카운트는 **리프 전체**(필터 전) 기준이다 — 모집단을 말하는 값이므로.
       const rb = list.reduce((a, r) => { a[r.rating_basis] = (a[r.rating_basis] || 0) + 1; return a; }, {});
       const rbText = Object.entries(rb).sort((x, y) => y[1] - x[1])
         .map(([k, v]) => `${RATING_LABEL[k] || k} ${v}`).join(' · ');
+      const counts = tenorCounts(list);
+      const miniText = TENOR_KEYS.filter((k) => counts[k]).map((k) => `${k} ${counts[k]}`).join(' · ');
       const thin = b.n < RV2_MIN_BUCKET_SAMPLE;
-      const sorted = [...list].sort((x, y) => y.adjustedOffset - x.adjustedOffset);
+
+      const shown = applyTenorFilter(list, TENOR_FILTER);
+      if (!shown.length) { hiddenBuckets++; return ''; }
+      const groups = tenorGroupsOf(shown);
+
+      // 필터가 켜지면 표시 건수와 통계 모집단을 나란히 적는다. 섞이면 n 을 오해한다.
+      const nText = TENOR_FILTER.size
+        ? `표시 ${shown.length} / 전체 n=${b.n}`
+        : `n=${b.n}`;
 
       return `<details class="bucket"${byLeaf.size <= 3 ? ' open' : ''}>
         <summary>
           <span class="b-name">${esc(leaf)}</span>
-          <span class="b-meta${thin ? ' b-warn' : ''}">n=${b.n}${thin ? ` (가드 미달 · ${esc(sorted[0].medianSource)} 중앙값 사용)` : ''}</span>
+          <span class="b-meta${thin ? ' b-warn' : ''}">${nText}${thin ? ` (가드 미달 · ${esc(shown[0].medianSource)} 중앙값 사용)` : ''}</span>
           <span class="b-meta">중앙값 ${signed(b.median)}bp · MAD ${fmt(b.mad)}</span>
           <span class="b-meta${b.missing ? ' b-warn' : ''}">오프셋 미상 ${b.missing}</span>
           <span class="b-meta">등급 ${esc(rbText)}</span>
+          <span class="b-meta b-tenor">${esc(miniText)}</span>
         </summary>
-        <div class="b-body">${rankTable(sorted)}</div>
+        <div class="b-body">${groups.map((g) => rankTable(g.rows, g.key)).join('')}</div>
       </details>`;
     }).join('');
 
-  return head + blocks;
+  const hiddenNote = hiddenBuckets
+    ? `<div class="footnote" style="margin-bottom:10px">선택한 구간에 관측이 없는 버킷 <b>${hiddenBuckets}</b>개는 표시하지 않았습니다.</div>`
+    : '';
+
+  return head + renderTenorChips(ranked) + hiddenNote + blocks;
 }
 
-function rankTable(list) {
+function rankTable(list, tenorLabel) {
+  const groupHead = tenorLabel
+    ? `<div class="t-group"><span class="t-key">${esc(tenorLabel)}</span><span class="t-n">${list.length}건</span></div>`
+    : '';
   const trs = list.map((r) => {
     const q = r.q;
     const side = q.side === 'bid' ? '<span class="side-bid">사자</span>' : '<span class="side-offer">팔자</span>';
@@ -228,7 +325,7 @@ function rankTable(list) {
       <td class="mono">${esc(q.broker) || '—'}</td>
     </tr>`;
   }).join('');
-  return `<table class="q"><thead><tr>
+  return `${groupHead}<table class="q"><thead><tr>
     <th>방향</th><th>발행사</th><th>종목</th><th>만기</th><th>구간</th><th>등급</th>
     <th class="num">민평%</th><th class="num">오프셋</th><th class="num">조정</th>
     <th>산출근거</th><th>수량</th><th>브로커</th>
@@ -343,6 +440,17 @@ function onParse() {
 
 function wire() {
   $('rv2-parse').addEventListener('click', onParse);
+  // 칩은 렌더될 때마다 새로 만들어지므로 컨테이너에 위임한다.
+  $('rv2-ranking').addEventListener('click', (e) => {
+    const chip = e.target && e.target.closest && e.target.closest('[data-tenor]');
+    if (!chip) return;
+    const k = chip.dataset.tenor;
+    if (k === '__all') TENOR_FILTER.clear();
+    else if (TENOR_FILTER.has(k)) TENOR_FILTER.delete(k);
+    else TENOR_FILTER.add(k);
+    saveView();
+    render();
+  });
   $('rv2-clear').addEventListener('click', () => {
     SESSION = newSession();
     try { localStorage.removeItem(LS_SESSION); } catch { /* noop */ }
@@ -364,6 +472,7 @@ function wire() {
 
 export function initRv2() {
   loadSession();
+  loadView();
   wire();
   render();
 }
