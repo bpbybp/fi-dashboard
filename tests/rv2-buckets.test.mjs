@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 
 import {
   RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K, RV2_TENOR_GRID, RWA0_ISSUERS, RWA20_ISSUERS,
-  ISSUER_RATING_MAP, RANKING_EXCLUDED_SECTORS,
+  ISSUER_RATING_MAP, RANKING_EXCLUDED_SECTORS, SUBSECTOR_BY_RWA,
   normalizeIssuer, classifySector, resolveRating, tenorBucket, tenorBucketFromYears,
   mad, annotate, buildBuckets,
 } from '../js/rv2-buckets.js';
@@ -35,13 +35,33 @@ test('RWA — §2.2 확정 리스트가 반영돼 있다', () => {
   }
 });
 
+test('공사·공단 3분할 — 신명칭을 쓰되 RWA 속성은 보존한다 (v2 대비)', () => {
+  const cases = [
+    ['토지주택채권155', 'RWA0', '중앙공사(보증·기금계)'],
+    ['도로공사978', 'RWA20', '중앙공사(SOC·에너지계)'],
+    ['인천도시공사238', '기타', '지방공기업'],
+  ];
+  for (const [name, rwa, subsector] of cases) {
+    const r = classifySector(q({ issuer_raw: name }));
+    assert.equal(r.sector, '공사·공단', name);
+    assert.equal(r.rwa, rwa, `${name}: RWA 속성은 계속 보존한다`);
+    assert.equal(r.subsector, subsector, name);
+    assert.equal(r.leaf, subsector, '리프 라벨은 신명칭. 섹터는 롤업 단계로만 남는다');
+  }
+  assert.deepEqual(SUBSECTOR_BY_RWA, {
+    RWA0: '중앙공사(보증·기금계)',
+    RWA20: '중앙공사(SOC·에너지계)',
+    기타: '지방공기업',
+  });
+});
+
 test('RWA — 회차가 붙어도 잡는다 (부분 문자열 매칭)', () => {
   // 정확일치였다면 원문의 `도로공사978`·`한국전력1477` 을 하나도 못 잡는다.
-  assert.equal(classifySector(q({ issuer_raw: '도로공사978' })).leaf, '공사·공단/RWA20');
-  assert.equal(classifySector(q({ issuer_raw: '한국전력1477' })).leaf, '공사·공단/RWA20');
-  assert.equal(classifySector(q({ issuer_raw: '한전1415' })).leaf, '공사·공단/RWA20', '한전=한국전력');
-  assert.equal(classifySector(q({ issuer_raw: '토지주택채권155' })).leaf, '공사·공단/RWA0');
-  assert.equal(classifySector(q({ issuer_raw: '중벤공787' })).leaf, '공사·공단/RWA0');
+  assert.equal(classifySector(q({ issuer_raw: '도로공사978' })).leaf, '중앙공사(SOC·에너지계)');
+  assert.equal(classifySector(q({ issuer_raw: '한국전력1477' })).leaf, '중앙공사(SOC·에너지계)');
+  assert.equal(classifySector(q({ issuer_raw: '한전1415' })).leaf, '중앙공사(SOC·에너지계)', '한전=한국전력');
+  assert.equal(classifySector(q({ issuer_raw: '토지주택채권155' })).leaf, '중앙공사(보증·기금계)');
+  assert.equal(classifySector(q({ issuer_raw: '중벤공787' })).leaf, '중앙공사(보증·기금계)');
 });
 
 test('RWA — 분기는 섹터 우선. 특은 소속은 공사 세분화에 쓰이지 않는다 (§2.2 주의사항)', () => {
@@ -55,13 +75,13 @@ test('RWA — 분기는 섹터 우선. 특은 소속은 공사 세분화에 쓰�
 });
 
 test('RWA — 철도공사와 국가철도공단은 별개 발행사이되 둘 다 RWA20', () => {
-  assert.equal(classifySector(q({ issuer_raw: '국가철도공단410' })).leaf, '공사·공단/RWA20');
-  assert.equal(classifySector(q({ issuer_raw: '한국철도공사12' })).leaf, '공사·공단/RWA20');
+  assert.equal(classifySector(q({ issuer_raw: '국가철도공단410' })).leaf, '중앙공사(SOC·에너지계)');
+  assert.equal(classifySector(q({ issuer_raw: '한국철도공사12' })).leaf, '중앙공사(SOC·에너지계)');
 });
 
 test('RWA — §2.2 에 없는 발행사는 기타로 둔다', () => {
-  assert.equal(classifySector(q({ issuer_raw: '경기주택도시공사' })).leaf, '공사·공단/기타');
-  assert.equal(classifySector(q({ issuer_raw: '인천도시공사238' })).leaf, '공사·공단/기타');
+  assert.equal(classifySector(q({ issuer_raw: '경기주택도시공사' })).leaf, '지방공기업');
+  assert.equal(classifySector(q({ issuer_raw: '인천도시공사238' })).leaf, '지방공기업');
   // `연합자산관리`(UAMCO)는 `자산관리공사`(캠코)가 아니다 — 부분 문자열이 겹치지 않는다.
   assert.equal(classifySector(q({ issuer_raw: '연합자산관리' })).sector, '회사채');
 });
@@ -135,7 +155,7 @@ test('섹터 — 은행 3분류가 서로 새지 않는다', () => {
 test('섹터 — 공사·공단은 RWA 하위축을 갖는다. 중벤공은 은행이 아니라 공단이다', () => {
   const r = classifySector(q({ issuer_raw: '인천도시공사238' }));
   assert.equal(r.sector, '공사·공단');
-  assert.equal(r.leaf, '공사·공단/기타');
+  assert.equal(r.leaf, '지방공기업');
   // 중소벤처기업진흥공단 — §2.2 가 RWA0 실효 대상으로 공사·공단에 둔다(특은 아님).
   assert.equal(classifySector(q({ issuer_raw: '중벤공787' })).sector, '공사·공단');
   // 다른 섹터는 rwa 를 갖지 않는다.
@@ -256,7 +276,7 @@ test('가드 — n<8 리프는 섹터 → 세션 순으로 롤업한다', () => 
   const mk = (issuer, n, off) => Array.from({ length: n }, () => q({ issuer_raw: issuer, offset_bp: off }));
   // 공사·공단/RWA20 10건(중앙값 5) + 지방채 2건(중앙값 -3)
   const { rows, leaves } = buildBuckets([...mk('한국전력1477', 10, 5), ...mk('대구광역시채권1', 2, -3)], { todayStr: TODAY });
-  assert.equal(leaves.get('공사·공단/RWA20').n, 10);
+  assert.equal(leaves.get('중앙공사(SOC·에너지계)').n, 10);
   assert.equal(leaves.get('지방채').n, 2);
 
   const gongsa = rows.find((r) => r.sector === '공사·공단');
@@ -315,7 +335,7 @@ test('픽스처 — rankable 1,020건의 리프 분포를 고정한다', () => {
   for (const [k, b] of fx.leaves) dist[k] = b.n;
   assert.deepEqual(dist, {
     특은: 334, '여전-캐피탈': 158, 회사채: 141,
-    '공사·공단/RWA20': 92, '공사·공단/기타': 48, '공사·공단/RWA0': 28,
+    '중앙공사(SOC·에너지계)': 92, '지방공기업': 48, '중앙공사(보증·기금계)': 28,
     '시은-시중계': 71, '여전-카드': 65, 증권채: 24, 은행지주: 18, '국고·통안': 17,
     지방채: 9, 지방은행: 1,
   });
@@ -323,16 +343,16 @@ test('픽스처 — rankable 1,020건의 리프 분포를 고정한다', () => {
   assert.ok(!fx.leaves.has('유동화·ABS'));
   assert.equal(fx.session.n, 1006);
   // RWA 3분할이 실제로 갈린다 — 통합 하나로 뒀을 때는 안 보이던 차이다.
-  assert.equal(fx.leaves.get('공사·공단/RWA20').median, -1.25);
-  assert.equal(fx.leaves.get('공사·공단/RWA0').median, -1.4);
-  assert.equal(fx.leaves.get('공사·공단/기타').median, 0);
+  assert.equal(fx.leaves.get('중앙공사(SOC·에너지계)').median, -1.25);
+  assert.equal(fx.leaves.get('중앙공사(보증·기금계)').median, -1.4);
+  assert.equal(fx.leaves.get('지방공기업').median, 0);
 });
 
 test('픽스처 — RWA 3분할 후에도 n<8 리프는 1개(관측 1건)뿐 → n=8 유지 근거', () => {
   assert.equal(fx.stats.leaves, 13);
   assert.equal(fx.stats.leavesUnderGuard, 1, '지방은행 n=1');
   // 3분할된 공사·공단 3칸이 전부 가드를 넘는다(28·52·88).
-  for (const k of ['공사·공단/RWA0', '공사·공단/RWA20', '공사·공단/기타']) {
+  for (const k of ['중앙공사(보증·기금계)', '중앙공사(SOC·에너지계)', '지방공기업']) {
     assert.ok(fx.leaves.get(k).n >= RV2_MIN_BUCKET_SAMPLE, k);
   }
   assert.equal(fx.stats.observationsUnderGuard, 1);

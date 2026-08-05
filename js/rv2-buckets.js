@@ -37,6 +37,22 @@ export const RV2_TENOR_GRID = [
 ];
 
 /**
+ * 공사·공단 하위 리프 명칭 (2026-08-05 확정).
+ *
+ * **축이 실측으로 정정된 자리다.** 원래는 RWA0/RWA20/기타 3분할이었는데(명령서 §2.2 가설),
+ * 국가철도공단 39건을 제자리로 옮기고 나니 **RWA0(−1.40)과 RWA20(−1.25)이 사실상 같은
+ * 수준**이었고, 실제로 갈리는 것은 그 둘과 지방공기업(0.00)이었다. 위험가중치가 아니라
+ * **발행 주체의 성격**이 스프레드를 가르고 있었다는 뜻이다. 경위는 보고서 §7.4.2.
+ *
+ * RWA 값 자체는 `rwa` 속성으로 계속 보존한다 — v2 에서 다시 쓸 수 있다.
+ */
+export const SUBSECTOR_BY_RWA = {
+  RWA0: '중앙공사(보증·기금계)',
+  RWA20: '중앙공사(SOC·에너지계)',
+  기타: '지방공기업',
+};
+
+/**
  * 공사·공단 RWA 하위축 — 명령서 §2.2 확정 리스트 (2026-08-05 반영).
  *
  * **키는 정규화된 발행사명에 대한 부분 문자열이다.** 원문에 회차가 붙어 오기 때문에
@@ -147,9 +163,11 @@ export function classifySector(quote) {
 
   for (const [sector, re] of SECTOR_RULES) {
     if (!re.test(norm)) continue;
-    if (sector !== '공사·공단') return { sector, rwa: null, leaf: sector, sector_basis: 'matched' };
+    if (sector !== '공사·공단') return { sector, rwa: null, subsector: null, leaf: sector, sector_basis: 'matched' };
     const rwa = hasKey(RWA0_ISSUERS, norm) ? 'RWA0' : hasKey(RWA20_ISSUERS, norm) ? 'RWA20' : '기타';
-    return { sector, rwa, leaf: `공사·공단/${rwa}`, sector_basis: 'matched' };
+    const subsector = SUBSECTOR_BY_RWA[rwa];
+    // 리프 라벨은 신명칭을 그대로 쓴다. 섹터('공사·공단')는 롤업 단계로만 남는다.
+    return { sector, rwa, subsector, leaf: subsector, sector_basis: 'matched' };
   }
   // 키워드에 안 걸리면 일반 사업회사로 본다. 다만 '추정'임을 basis 로 남긴다.
   return { sector: '회사채', rwa: null, leaf: '회사채', sector_basis: 'default' };
