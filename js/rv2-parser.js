@@ -242,6 +242,35 @@ export function parseTenorSpan(content) {
   return null;
 }
 
+/**
+ * `parseIssuerRaw` 결과에는 레벨·민평 잔여물이 붙어 온다.
+ * 실측 예: `중금 언더4` / `SBS14-2 민평.964` / `아이비케이캐피탈355-5 민` /
+ *          `27.1.5( 산금채 민평 3.169 100` / `수금은행 [만 3.127]`
+ * 섹터 키워드 매칭 전에 이 꼬리를 걷어낸다. 완벽한 발행사명 복원이 목적이 아니라,
+ * **키워드가 잔여물에 가려지지 않게 하는 것**이 목적이다.
+ */
+export function normalizeIssuer(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let t = raw;
+  t = t.replace(/\[[^\]]*\]/g, ' ');            // [만 3.127]
+  t = t.replace(/KR[A-Z0-9]{8,}/g, ' ');        // 표준코드
+  t = t.replace(/언\s*더\s*\d+(?:\.\d+)?/g, ' ');
+  t = t.replace(/오\s*[버바]\s*\d+(?:\.\d+)?/g, ' ');
+  // 민평 잔여물. **숫자를 반드시 요구한다** — `\d*` 로 두면 `국민은행` 의 '민' 까지 지워
+  // `국 은행` 이 되어 섹터 판정이 무너진다(실측으로 확인된 함정).
+  // 끝전만 적는 `민평.964` 형태도 있어 선행 소수점을 허용한다.
+  t = t.replace(/민\s*평?\s*[:：,~]?\s*(?:\d+(?:\.\d+)?|\.\d+)/g, ' '); // 민평3.112 / 민 3.61 / 민평.964
+  t = t.replace(/(^|\s)민평?(?=\s|$)/g, ' ');   // 꼬리에 남은 단독 '민'·'민평'
+  t = t.replace(/끝\s*전?\s*\.?\d*/g, ' ');
+  t = t.replace(/쿠폰\s*\d+(?:\.\d+)?/g, ' ');
+  t = t.replace(/\d{2,4}\.\d{1,2}\.?\d{0,2}/g, ' '); // 날짜 조각
+  t = t.replace(/[~～][A-Z]{0,2}\d+/g, ' ');    // ~EB2
+  t = t.replace(/\d+\s*억/g, ' ');
+  t = t.replace(/[/(),:[\]]+/g, ' ');
+  t = t.replace(/\s+/g, ' ').trim();
+  return t;
+}
+
 // ── 중복 제거 키 (§1.7) ──────────────────────────────────────────────────
 
 /** 딜러 식별자 — 전화번호가 사실상 딜러 ID. 없으면 브로커명, 그것도 없으면 발화자. */
@@ -249,9 +278,17 @@ export function dealerId(q) {
   return q.dealer_phone || q.broker || q.trader_name || '';
 }
 
-/** 호가 정체성 — observations 배열의 소유자. 레벨은 포함하지 않는다. */
+/**
+ * 호가 정체성 — observations 배열의 소유자. 레벨은 포함하지 않는다.
+ *
+ * **`issuer_raw` 를 그대로 쓰면 안 된다.** `parseIssuerRaw` 결과에는 레벨 문자열이 남아
+ * (`중금 언더3` vs `중금 언더1`) 레벨이 바뀔 때마다 **다른 호가로 갈라진다** — §1.7 의
+ * append 규약이 통째로 무력화된다. Phase 3 UI 작업 중 실측으로 확인한 결함이다.
+ * 정규화한 발행사명을 써야 같은 호가의 레벨 변동으로 인식된다.
+ */
 export function instrumentKey(q) {
-  return [dealerId(q), q.issuer_raw || '', q.bond_code || '', q.maturity_date || '', q.side || ''].join('|');
+  const issuer = normalizeIssuer(q.issuer_raw) || q.issuer_raw || '';
+  return [dealerId(q), issuer, q.bond_code || '', q.maturity_date || '', q.side || ''].join('|');
 }
 
 /**
