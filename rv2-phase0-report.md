@@ -137,6 +137,7 @@ RV-2 작업 중 **`git diff`가 비어 있어야 하는 파일**:
 | 신규 | `js/rv2-buckets.js` | 2 |
 | 신규 | `tests/rv2-buckets.test.mjs` | 2 |
 | 신규 | `rv2-quote-rank.html`, `js/rv2-ui.js` | 3 |
+| 신규 | `tests/rv2-ui.test.mjs` | 3 — **2026-08-05 추가.** 명령서 작성 시 누락이었다. Phase 1·2 는 테스트 파일이 짝으로 적혀 있는데 Phase 3 만 빠져 있었고, §1.7 저장 규약(RV-1 덮어쓰기 vs RV-2 append)은 설계 차이의 핵심이라 테스트 없이 둘 수 없다 |
 | 수정 | `js/nav.js` | 3 — **NAV_ITEMS에 1줄 추가. 이것이 유일한 기존 코드 파일 변경** |
 | 수정 | `.gitignore` | 0 — 원문 샘플 보관 경로 제외 |
 
