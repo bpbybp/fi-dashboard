@@ -15,6 +15,7 @@ export const NAV_ITEMS = [
   { id: 'curve-phase', title: 'Curve Phase', file: 'curve-phase.html', desc: '커브 국면 — 프라이싱 갭·r* 재조정·텀프리미엄 3변수로 플랫/스팁 국면 판별 (ECOS+FRED, KR 주력·US 참고)' },
   { id: 'us-credit-spread', title: 'US Credit Spread', file: 'us-credit-spread.html', desc: '미국 IG·HY·등급별 OAS + 파생 스프레드(BBB−A·A−AA·장기−전체) z250 — 하이퍼스케일러 발행압력 측정 (FRED BAML)' },
   { id: 'rv-screener', title: 'RV 스크리너', file: 'rv-screener.html', desc: 'K본드 호가 vs 민평 그리드 상대가치 — 발행사 커브 보간·횡단면 조정괴리로 수급 이상치 판별 (클라이언트 온리)' },
+  { id: 'rv2-quote-rank', title: '호가 랭킹', file: 'rv2-quote-rank.html', desc: '케이본드 호가 vs 민평 오프셋(bp) — 섹터 버킷 중앙값 차감 후 싸게 나온 순 랭킹 (민평 업로드 없음·클라이언트 온리)' },
   { id: 'onoff', title: 'On/Off 스프레드', file: 'onoff-spread.html', desc: '국고 3년 지표물 커브조정 상대가치 — 세대 이벤트타임 비교' },
   { id: 'carry', title: '캐리 손익분기', file: 'carry-breakeven.html', desc: '레버리지 캐리 vs 금리·스프레드 확대 — 손익분기·시나리오 기대값 (입력형)' },
   { id: 'rg-regime', title: '레짐 판단', file: 'rg-regime.html', desc: '전향적 레짐 히트맵 — 금리·스프레드 방향 확률 → 9셀 결합확률 + 플레이북 (입력형)' },

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RV-2 호가 랭킹 — 민평 대비 오프셋</title>
+<!-- 테마 선적용(FOUC 방지). RV-2 는 §3.5 요구대로 **라이트가 기본**이다(다른 페이지와 반대). -->
+<script>try{document.documentElement.dataset.cpTheme=localStorage.getItem('rv2-theme')==='dark'?'dark':'light';}catch(e){document.documentElement.dataset.cpTheme='light';}</script>
+<style>
+  /* 토큰 세트는 curve-phase.html / onoff-spread.html 과 동일 값 — 라이트가 기본이라 순서만 뒤집었다. */
+  :root {
+    --bg: #faf9f6; --panel: #ffffff; --panel-2: #f4f1ea;
+    --border: #e7e2d8; --border-2: #d6cfc1;
+    --text: #26231d; --muted: #837b6d;
+    --accent: #ffbc00; --accent-ink: #8a6b00;
+    --accent-contrast: #26231d; /* 노랑 위 검정 = KB 시그니처 조합 */
+    --red: #c9453a; --ok: #2f8f4e; --amber: #d98e04;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  [data-cp-theme='dark'] {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --accent-ink: #58a6ff;
+    --accent-contrast: #08111f;
+    --red: #f85149; --ok: #3fb950; --amber: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 28px 22px 80px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: var(--accent-contrast); }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  .eyebrow .right { margin-left: auto; display: flex; gap: 8px; }
+  .btn { font-size: 12px; line-height: 1.5; color: var(--muted); background: transparent; border: 1px solid var(--border-2);
+    border-radius: 6px; padding: 4px 9px; cursor: pointer; font-family: var(--sans); }
+  .btn:hover { color: var(--text); border-color: var(--accent-ink); }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 3px; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .sec-title { font-size: 13px; font-weight: 700; margin: 22px 0 8px; display: flex; align-items: baseline; gap: 8px; }
+  .sec-title .cap { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; padding: 16px 18px; }
+  textarea { width: 100%; min-height: 130px; resize: vertical; background: var(--panel-2); color: var(--text);
+    border: 1px solid var(--border-2); border-radius: 8px; padding: 10px 12px; font-family: var(--mono); font-size: 12px; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  .hint { font-size: 11.5px; color: var(--muted); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0 4px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
+  .stat-label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-main { font-size: 18px; font-weight: 700; font-family: var(--mono); margin-top: 2px; }
+  .stat-unit { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: 2px; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .footnote { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .footnote b { color: var(--text); }
+
+  table.q { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.q th { text-align: left; font-weight: 700; font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.03em; border-bottom: 1px solid var(--border-2); padding: 6px 8px; }
+  table.q td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+  table.q td.num, table.q th.num { text-align: right; font-family: var(--mono); }
+  table.q td.mono { font-family: var(--mono); }
+  table.q tbody tr:hover { background: var(--panel-2); }
+
+  .bucket { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; margin-bottom: 10px; overflow: hidden; }
+  .bucket > summary { cursor: pointer; padding: 11px 14px; list-style: none; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .bucket > summary::-webkit-details-marker { display: none; }
+  .bucket > summary:hover { background: var(--panel-2); }
+  .bucket .b-name { font-size: 13px; font-weight: 700; }
+  .bucket .b-meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .bucket .b-warn { color: var(--amber); }
+  .bucket .b-body { padding: 0 14px 12px; }
+
+  .side-offer { color: var(--red); font-weight: 700; }
+  .side-bid { color: var(--ok); font-weight: 700; }
+  .badge { font-size: 10px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--muted); }
+  /* 이상치는 **색상만** 쓴다. 판단 텍스트를 붙이지 않는다 — 측정만 한다. */
+  tr.is-outlier td.num.off { color: var(--amber); font-weight: 700; }
+
+  .excluded-line { font-size: 11.5px; color: var(--muted); font-family: var(--mono); padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .excluded-line .why { color: var(--accent-ink); margin-right: 6px; }
+  .empty { font-size: 12.5px; color: var(--muted); padding: 10px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <script type="module" src="js/nav.js"></script>
+
+  <div class="eyebrow">
+    <span class="step">RV-2</span>
+    <span class="ctx">케이본드 호가 랭킹 · 클라이언트 온리(브라우저 밖으로 나가지 않음)</span>
+    <span class="right">
+      <button class="btn" id="rv2-theme" type="button" title="라이트/다크 전환">🌙 다크</button>
+    </span>
+  </div>
+
+  <h1>호가 랭킹 — 민평 대비 오프셋</h1>
+  <p class="tagline">
+    벤치마크는 커브가 아니라 <b>민평</b>이다. 만기 정규화는 민평이 흡수하므로 커브 피팅·보간을 하지 않는다.
+    <b>+오프셋 = 민평 대비 높은 수익률 = 싸게 나온 오퍼.</b> 측정만 한다 — 추천·시그널 없음.
+  </p>
+
+  <div class="panel">
+    <textarea id="rv2-text" placeholder="케이본드 채팅 원문을 그대로 붙여넣으세요. 발화자·시각 줄바꿈 형식 그대로면 됩니다."></textarea>
+    <div class="row">
+      <button class="btn btn-primary" id="rv2-parse" type="button">파싱</button>
+      <button class="btn" id="rv2-clear" type="button">당일 세션 비우기</button>
+      <span class="hint" id="rv2-session-info"></span>
+    </div>
+  </div>
+
+  <div id="rv2-summary"></div>
+  <div id="rv2-ranking"></div>
+  <div id="rv2-demand"></div>
+  <div id="rv2-unclassified"></div>
+</div>
+
+<script type="module">
+  import { initRv2 } from './js/rv2-ui.js';
+  initRv2();
+</script>
+</body>
+</html>
