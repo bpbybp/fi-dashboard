@@ -19,6 +19,7 @@ import { dirname, join } from 'node:path';
 import {
   parseKbondLog, parseKbondQuotes, parseMaturity, parseSide, parseMinpyeong,
   parseSpread, parseRating, parseActualYield, parseIssuerRaw, parseTags, parseBroker,
+  EXPLICIT_FLAT_RE,
 } from '../js/rv-parser.js';
 import { quoteYield } from '../js/rv-engine.js';
 import { buildGaps, bucketMedians, adjustGaps } from '../js/rv-cross.js';
@@ -47,22 +48,34 @@ test('parseSpread 우선순위 — 원 > bp > 오버 > 명시flat > absolute > �
   assert.deepEqual(parseSpread('중금채 3.650 팔자'), { type: 'absolute', value: 3.65 });
 });
 
-test('⚠ B-6 현행 버그 — 레벨 없는 호가에 폴백 flat 0 이 붙는다', () => {
-  // 이 라인들에는 수익률도, 언더/오버도, 민평팔자 표현도 없다. "모른다" 가 맞는 답인데
-  // rv-parser.js:159 의 마지막 폴백이 팔자/사자 존재만 보고 flat 0 을 만든다.
+test('B-6 수정 — 레벨 없는 호가는 flat 0 이 아니라 미상(null) 이다', () => {
+  // 이 라인들에는 수익률도, 언더/오버도, 민평팔자 표현도 없다. "모른다" 가 맞는 답이다.
+  // 수정 전: 전부 { type:'flat', value:0 } (rv-parser.js:159 폴백)
   for (const line of [
     '27.5.4(화) 지에스리테일34-2(사)(민 3.802%/.04/AA) 팔자',
     '26.9.23 한전1422 팔자',
     '27.1.25 중금 (민 3.212, 끝전1) 팔자',
     '2년 산금 사자',
   ]) {
-    assert.deepEqual(parseSpread(line), { type: 'flat', value: 0 }, `폴백 발화: ${line}`);
+    assert.equal(parseSpread(line), null, `레벨 없음 → 미상: ${line}`);
   }
 });
 
-test('⚠ B-1 현행 버그 — 언더N 이 없어 폴백 flat 0 으로 읽힌다', () => {
-  // 실제로는 민평 대비 −3bp 인데 0bp 가 된다.
-  assert.deepEqual(parseSpread('28.1.3(월) 만기 중금(사) (민3.744%) 언더3 팔자'), { type: 'flat', value: 0 });
+test('B-6 수정 — 명시 flat 은 그대로 0 으로 인정한다 (RV-2 규약과 동일 범위)', () => {
+  for (const line of [
+    'SBS14-2 (민:3.957% / 끝.79 / AA ) 민 팔자',
+    '산금채 (민평 2.924%) 팔자 민평팔자',   // `민평 팔자` — 수정 전 정규식은 이걸 못 읽었다
+    'LG화학58-2 팔자 / 민평 팔자',
+    '중금채 플랫 팔자',
+  ]) {
+    assert.deepEqual(parseSpread(line), { type: 'flat', value: 0 }, `명시 flat: ${line}`);
+  }
+});
+
+test('⚠ B-1 — 언더N 은 여전히 미구현이지만, 이제 허위 0bp 대신 미상이 된다', () => {
+  // 실제로는 민평 대비 −3bp 다. 수정 전에는 폴백에 걸려 **0bp 로 오인**됐고,
+  // 지금은 미상(null)이 된다. 값을 맞히는 것은 B-1 소관(별건).
+  assert.equal(parseSpread('28.1.3(월) 만기 중금(사) (민3.744%) 언더3 팔자'), null);
 });
 
 test('parseSpread — 방향어조차 없으면 null', () => {
@@ -75,35 +88,45 @@ test('parseSpread — 방향어조차 없으면 null', () => {
 // 2. B-6 의 피해 경로 — quoteYield → rawGap → 버킷 중앙값
 // ══════════════════════════════════════════════════════════════════════════
 
-test('⚠ B-6 피해 경로 — 폴백 flat + 민평이면 "민평에 판다"가 되어 원괴리 0 으로 유입된다', () => {
-  const q = { actual_yield: null, minpyeong_yield: 3.802, spread_type: 'flat', spread_value: 0 };
-  assert.deepEqual(quoteYield(q), { y: 3.802, basis: '민평flat' },
-    '⚠ 레벨을 제시하지 않은 호가인데 민평 그 자체를 호가수익률로 채택한다');
+test('B-6 수정 — quoteYield 는 명시 flat 일 때만 민평을 호가수익률로 채택한다', () => {
+  // 명시 flat: "민평에 판다" 가 실제 의사표시이므로 민평 채택이 옳다.
+  assert.deepEqual(
+    quoteYield({ actual_yield: null, minpyeong_yield: 3.802, spread_type: 'flat', spread_value: 0 }),
+    { y: 3.802, basis: '민평flat' });
+
+  // 레벨 없음: parseSpread 가 null 을 주므로 여기서도 미상이어야 한다.
+  // 수정 전에는 이 경우까지 '민평flat' 으로 떨어져 원괴리 0 이 됐다 — B-6 의 절반은 여기 있었다.
+  assert.deepEqual(
+    quoteYield({ actual_yield: null, minpyeong_yield: 3.802, spread_type: null, spread_value: null }),
+    { y: null, basis: '미상(레벨없음)' });
 });
 
-test('⚠ B-6 피해 경로 — 허수 0bp 가 버킷 중앙값을 끌어당긴다', () => {
+test('B-6 수정 — 레벨 없는 호가는 버킷 중앙값 산출에서 빠진다', () => {
   const mk = (minpyeong, spread_type, actual_yield = null) => ({
     q: { minpyeong_yield: minpyeong, spread_type, spread_value: 0, actual_yield, side: 'offer' },
     ref: { group: '은행채', refYield: null, method: 'issuer' },
   });
-  // 실제 레벨을 제시한 호가 2건(+5bp, +7bp)과, 레벨 없는 폴백 flat 3건.
+  // 실제 레벨을 제시한 호가 2건(+5bp, +7bp)과, 레벨 없는 호가 3건(수정 후 spread_type=null).
   const rows = [
     mk(3.0, 'absolute', 3.05),
     mk(3.0, 'absolute', 3.07),
-    mk(3.0, 'flat'), mk(3.0, 'flat'), mk(3.0, 'flat'),
+    mk(3.0, null), mk(3.0, null), mk(3.0, null),
   ];
   const gaps = buildGaps(rows, quoteYield);
   // 부동소수 오차가 있어 근사 비교한다(4.999999… ≈ 5).
-  assert.deepEqual(gaps.map((g) => Math.round(g.rawGap * 1e6) / 1e6), [5, 7, 0, 0, 0],
-    '폴백 flat 3건이 rawGap 0 으로 들어온다');
+  assert.deepEqual(gaps.map((g) => (g.rawGap == null ? null : Math.round(g.rawGap * 1e6) / 1e6)),
+    [5, 7, null, null, null], '레벨 없는 3건은 원괴리가 산출되지 않는다');
 
   const bm = bucketMedians(gaps);
-  assert.equal(bm.bucketCount['은행채'], 5);
-  assert.equal(bm.bucketMedian['은행채'], 0, '⚠ 중앙값이 5~7bp 가 아니라 0 으로 끌려간다');
+  assert.equal(bm.bucketCount['은행채'], 2, '수정 전에는 5 — 허수 3건이 표본에 들어갔다');
+  assert.equal(Math.round(bm.bucketMedian['은행채'] * 1e6) / 1e6, 6,
+    '수정 전에는 0 — 이제 실제 시장 베타(6bp)를 잡는다');
 
   adjustGaps(gaps, bm);
-  // 진짜 호가의 조정괴리가 부풀려진다 — 시장 베타를 못 빼서 +5bp 가 그대로 남는다.
-  assert.deepEqual(gaps.slice(0, 2).map((g) => Math.round(g.adjustedGap * 1e6) / 1e6), [5, 7]);
+  // 중앙값이 제대로 잡히니 조정괴리가 실제 상대가치(±1bp)를 보여준다.
+  // 수정 전에는 중앙값 0 이라 조정괴리 = 원괴리(+5, +7)로 부풀려져 있었다.
+  assert.deepEqual(gaps.slice(0, 2).map((g) => Math.round(g.adjustedGap * 1e6) / 1e6), [-1, 1]);
+  assert.equal(gaps[2].adjustedGap, null, '미상은 랭킹에서 빠진다');
 });
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -241,42 +264,31 @@ test('픽스처 — parseKbondQuotes 집계 (RV-1 현행)', () => {
   assert.deepEqual(rv1.stats.confidence, { high: 3051, medium: 380, low: 148 });
 });
 
-test('픽스처 — spread_type 분포 (RV-1 현행)', () => {
+test('픽스처 — spread_type 분포 (B-6 수정 후)', () => {
   const dist = {};
   for (const q of rv1.quotes) dist[q.spread_type || '(null)'] = (dist[q.spread_type || '(null)'] || 0) + 1;
-  assert.deepEqual(dist, { won: 869, flat: 2405, absolute: 139, bp: 52, '(null)': 114 });
+  // 수정 전: { won:869, flat:2405, absolute:139, bp:52, '(null)':114 }
+  //   flat 2,405 → 218  (폴백 2,272건 소멸 + 명시 flat 정규식 확대로 absolute 3건 이동)
+  //   (null) 114 → 2,304 (레벨 없는 호가가 미상으로 이동)
+  assert.deepEqual(dist, { won: 869, flat: 218, absolute: 136, bp: 52, '(null)': 2304 });
 });
 
-test('⚠ B-6 픽스처 실측 — flat 2,405건 중 94.5% 가 폴백이다', () => {
-  // rv-parser.js:156 의 명시 flat 정규식과 동일. 이 조건에 걸리지 않은 flat = 폴백.
-  const EXPLICIT = /민\s*(?:팔자|사자)|플랫|flat(?:\s|$)|\.\.(?:팔자|사자)/i;
+test('B-6 수정 — flat 은 전부 명시 표현이다 (폴백 0건)', () => {
   const flats = rv1.quotes.filter((q) => q.spread_type === 'flat');
-  assert.equal(flats.length, 2405);
-  assert.equal(flats.filter((q) => EXPLICIT.test(q.raw_line)).length, 133, '명시 flat');
-
-  const fallback = flats.filter((q) => !EXPLICIT.test(q.raw_line));
-  assert.equal(fallback.length, 2272, '폴백 flat');
-  // ↓ 이 1,963건이 quoteYield 에서 "민평에 판다"가 되어 원괴리 0 으로 횡단면에 유입된다.
-  //   전체 호가 3,579건의 54.8%. B-6 을 1순위로 올린 근거다.
-  assert.equal(fallback.filter((q) => q.minpyeong_yield != null).length, 1963);
-  assert.equal(fallback.filter((q) => q.minpyeong_yield == null).length, 309);
+  assert.equal(flats.length, 218, '수정 전 2,405');
+  const fallback = flats.filter((q) => !EXPLICIT_FLAT_RE.test(q.raw_line));
+  assert.equal(fallback.length, 0, '수정 전 2,272건(94.5%) — 전부 제거됐다');
 });
 
-test('⚠ B-6 픽스처 실측 — 원괴리 0 으로 유입되는 호가 비율', () => {
-  // quoteYield 는 민평이 있고 spread_type 이 bp/absolute/won 중 어느 것도 아니면
-  // 전부 '민평flat' 으로 떨어뜨린다 — 폴백 flat 뿐 아니라 **spread_type=null** 도 포함된다.
-  const contaminated = rv1.quotes.filter((q) => quoteYield(q).basis === '민평flat');
-  assert.equal(contaminated.length, 2152);
-  assert.equal(Math.round((contaminated.length / rv1.stats.quotes_total) * 1000) / 10, 60.1,
-    '전체 호가의 60.1% 가 원괴리 0 으로 횡단면에 들어온다');
+test('B-6 수정 — 원괴리 0 으로 유입되는 호가가 2,152 → 170 으로 줄었다', () => {
+  const flatBasis = rv1.quotes.filter((q) => quoteYield(q).basis === '민평flat');
+  assert.equal(flatBasis.length, 170, '수정 전 2,152 (전체 호가의 60.1%)');
+  assert.equal(Math.round((flatBasis.length / rv1.stats.quotes_total) * 1000) / 10, 4.7);
+  // 남은 170건은 전부 **명시 민평팔자** — 0bp 가 실제로 옳은 호가다.
+  assert.equal(flatBasis.filter((q) => !EXPLICIT_FLAT_RE.test(q.raw_line)).length, 0);
 
-  // 내역: 명시 flat(정당) / 폴백 flat(B-6) / spread_type null(레벨도 방향표현도 없음)
-  const EXPLICIT = /민\s*(?:팔자|사자)|플랫|flat(?:\s|$)|\.\.(?:팔자|사자)/i;
-  const byKind = { explicitFlat: 0, fallbackFlat: 0, nullType: 0 };
-  for (const q of contaminated) {
-    if (q.spread_type === 'flat') (EXPLICIT.test(q.raw_line) ? byKind.explicitFlat++ : byKind.fallbackFlat++);
-    else byKind.nullType++;
-  }
-  // 폴백 flat 1,963건 중 4건은 actual_yield 가 있어 basis 'actual' 로 빠진다 → 1,959.
-  assert.deepEqual(byKind, { explicitFlat: 107, fallbackFlat: 1959, nullType: 86 });
+  // 빠진 자리는 '미상(레벨없음)' 으로 간다 — 숨기지 않고 별도 basis 로 표시한다.
+  const unknownLevel = rv1.quotes.filter((q) => quoteYield(q).basis === '미상(레벨없음)');
+  assert.equal(unknownLevel.length, 1982);
+  assert.equal(Math.round((unknownLevel.length / rv1.stats.quotes_total) * 1000) / 10, 55.4);
 });

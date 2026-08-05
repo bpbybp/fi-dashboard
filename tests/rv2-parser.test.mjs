@@ -64,10 +64,11 @@ test('규칙4 "+N원"만 있고 결과 수익률 없음 → 결측(듀레이션 
 });
 
 test('폴백 flat 방어 — 레벨 없는 "팔자"에 0bp를 붙이지 않는다', () => {
-  // rv-parser.parseSpread 는 팔자만 있어도 {type:flat, value:0} 을 돌려준다(rv-parser.js:159).
-  // 그대로 믿으면 레벨 없는 호가가 전부 "민평 플랫"으로 랭킹에 올라간다.
+  // 예전 rv-parser.parseSpread 는 팔자만 있어도 {type:flat, value:0} 을 돌려줬고(구 rv-parser.js:159),
+  // RV-2 는 그걸 믿지 않는 방어를 얹어 왔다. 2026-08-05 백로그 B-6 으로 **기저 파서 쪽이 고쳐져**
+  // 이제 null 이 온다. RV-2 의 결론(offset 미상)은 그대로다 — 방어는 이중화로 남는다.
   const q = onlyQuote('김진우 (09:09:00) : 도로공사975 30.5.20 팔자');
-  assert.equal(q.spread_type, 'flat', '기저 파서는 flat 을 준다');
+  assert.equal(q.spread_type, null, 'B-6 수정 후 기저 파서는 미상(null)을 준다');
   assert.equal(q.offset_bp, null, 'rv2는 명시 표현이 아니면 0으로 확정하지 않는다');
   assert.equal(q.offset_basis, 'unknown');
 });
