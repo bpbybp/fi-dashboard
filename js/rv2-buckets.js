@@ -37,20 +37,29 @@ export const RV2_TENOR_GRID = [
 ];
 
 /**
- * 공사·공단 RWA 하위축.
+ * 공사·공단 RWA 하위축 — 명령서 §2.2 확정 리스트 (2026-08-05 반영).
  *
- * ⚠ **미확정 — 명령서 §2.2 확정 리스트를 받아 채운다.** 지금은 비어 있고, 그래서 모든
- *    공사·공단이 `기타` 로 떨어진다. 이것은 누락이 아니라 **의도된 상태**다:
- *    위험가중치를 잘못 붙이면 그 자체가 오염이고, "확신 없으면 넣지 않는다"는 원칙이
- *    등급과 RWA 에 똑같이 적용된다. 리스트가 오면 여기 두 상수만 채우면 된다 —
- *    호출부는 손대지 않는다(상수 단일 위치 요구).
+ * **키는 정규화된 발행사명에 대한 부분 문자열이다.** 원문에 회차가 붙어 오기 때문에
+ * (`도로공사978`, `한국전력1477`, `토지주택채권155`) 정확일치로는 하나도 못 잡는다.
+ *
+ * **분기는 섹터 우선이다.** RWA 세분화는 공사·공단 리프 안에서만 작동한다.
+ * RWA0 의 산업은행·중소기업은행·수출입은행은 섹터상 **특은** 이라 여기 적혀 있어도
+ * 공사 세분화에는 쓰이지 않는다 — 발행사 성격 기록용으로 남긴다(§2.2 주의사항).
+ * 공사·공단 내 RWA0 실효 대상: 토지주택 · 장학재단 · 중벤공 · 주금공 · 자산관리공사 · 신보 · 기보.
  */
-export const RWA0_ISSUERS = new Set([
-  // 예: '한국장학재단', '예금보험공사' … §2.2 확정 후 기입
-]);
-export const RWA20_ISSUERS = new Set([
-  // 예: '한국전력공사', '한국도로공사' … §2.2 확정 후 기입
-]);
+export const RWA0_ISSUERS = [
+  '토지주택', '장학재단', '중벤공', '중소벤처기업진흥', '주택금융공사', '주금공',
+  '자산관리공사', '신용보증기금', '기술보증기금',
+  // ↓ 섹터상 특은. 공사 세분화에는 쓰이지 않는다(섹터 우선).
+  '산업은행', '중소기업은행', '수출입',
+];
+export const RWA20_ISSUERS = [
+  '한국전력', '한전', // rv-abbrev 가 "한전"→한국전력공사 로 확정한 동일 발행사
+  '도로공사', '가스공사', '철도공사', '수자원공사',
+];
+
+/** 부분 문자열 매칭. `국가철도공단410`.includes('철도공사') 는 false — 다른 발행사다. */
+const hasKey = (list, norm) => list.some((k) => norm.includes(k));
 
 // ══════════════════════════════════════════════════════════════════════════
 // 발행사 정규화 — 섹터 판정 전에 반드시 거친다
@@ -97,13 +106,15 @@ export function normalizeIssuer(raw) {
 export const SECTOR_RULES = [
   ['국고·통안', /국고|통안|재정증권|국민주택|국주|외평|국채/],
   ['지방채', /특별시|광역시|지역개발|지방채|도채권/],
-  ['특은', /산금|산업은행|중금|기은|기업은행|수출입|농금|농협은행|농중|농협중앙회|수금|수협|중벤공|중소벤처기업진흥|정책금융/],
+  // 중벤공(중소벤처기업진흥공단)은 은행이 아니라 공단이다 — §2.2가 RWA0 실효 대상으로
+  // 공사·공단에 두므로 특은에서 뺀다. 축약형 `중벤공` 은 공사·공단 규칙이 따로 잡는다.
+  ['특은', /산금|산업은행|중금|기은|기업은행|수출입|농금|농협은행|농중|농협중앙회|수금|수협|정책금융/],
   ['지방은행', /부산은행|경남은행|대구은행|iM뱅크|아이엠뱅크|광주은행|전북은행|제주은행/i],
   ['시은-비시중계', /카카오뱅크|케이뱅크|토스뱅크/],
   // `국은채` 는 원문 축약이다. 만기 인접 민평 수준이 국민은행과 정합해 시중계로 본다.
   // 다만 **등급 역매핑은 하지 않는다** — 섹터는 거칠어도 되지만 등급은 틀리면 중앙값을 오염시킨다.
   ['시은-시중계', /국민은행|신한은행|하나은행|우리은행|SC제일|씨티은행|신한채|하나채|우리채|국민채|국은채/i],
-  ['공사·공단', /공사|공단|한전|한국전력|철도|도로|토지주택|가스|수자원|주택도시|항만|교통|장학재단|예금보험|주금공|인도공|MBS/i],
+  ['공사·공단', /공사|공단|한전|한국전력|철도|도로|토지주택|가스|수자원|주택도시|항만|교통|장학재단|예금보험|주금공|인도공|MBS|중벤공|보증기금|자산관리공사/i],
   ['여전-카드', /카드|롯카/],
   // 축약 표기가 많다: `IBK캐355-5`, `KB캐577-3`, `아이비캐`, `산은캐`. `캐피` 만으로는 안 잡힌다.
   ['여전-캐피탈', /캐피탈|캐피털|케피탈|캐피|커머셜|파이낸셜|에프앤아이|할부|여전|리스\b|IBK캐|KB캐|아이비캐|산은캐|우리캐|신한캐|하나캐|한투캐|키캐/i],
@@ -129,7 +140,7 @@ export function classifySector(quote) {
   for (const [sector, re] of SECTOR_RULES) {
     if (!re.test(norm)) continue;
     if (sector !== '공사·공단') return { sector, rwa: null, leaf: sector, sector_basis: 'matched' };
-    const rwa = RWA0_ISSUERS.has(norm) ? 'RWA0' : RWA20_ISSUERS.has(norm) ? 'RWA20' : '기타';
+    const rwa = hasKey(RWA0_ISSUERS, norm) ? 'RWA0' : hasKey(RWA20_ISSUERS, norm) ? 'RWA20' : '기타';
     return { sector, rwa, leaf: `공사·공단/${rwa}`, sector_basis: 'matched' };
   }
   // 키워드에 안 걸리면 일반 사업회사로 본다. 다만 '추정'임을 basis 로 남긴다.
@@ -168,14 +179,23 @@ export const ISSUER_RATING_MAP = [
   // 이하 픽스처 등장 순으로 확신 있는 것만 추가한다.
 ];
 
+/** 등급 축 자체가 적용되지 않는 섹터. 국채는 신용등급 개념이 없다 — 미상과 구분해야 한다. */
+export const RATING_NOT_APPLICABLE_SECTORS = new Set(['국고·통안']);
+
 /**
  * 등급 해석 → { rating, rating_basis }
- *   'explicit'      원문에 등급이 찍혀 있었다 (parseRating 결과)
- *   'issuer_mapped' 발행사 역매핑으로 복구했다
- *   'unknown'       모른다 — 숨기지 않고 '등급미상' 으로 남긴다
+ *   'explicit'        원문에 등급이 찍혀 있었다 (parseRating 결과)
+ *   'issuer_mapped'   발행사 역매핑으로 복구했다
+ *   'not_applicable'  등급 축 비적용(국고·통안). **미상이 아니다** — 섞으면 "복구 못 한 것"
+ *                     처럼 보여 등급미상 비율을 부풀린다
+ *   'unknown'         모른다 — 숨기지 않고 '등급미상' 으로 남긴다
+ * @param {object} quote
+ * @param {string} [sector] 미지정 시 내부에서 판정한다(단독 호출 편의).
  */
-export function resolveRating(quote) {
+export function resolveRating(quote, sector) {
   const q = quote || {};
+  const sec = sector || classifySector(q).sector;
+  if (RATING_NOT_APPLICABLE_SECTORS.has(sec)) return { rating: null, rating_basis: 'not_applicable' };
   if (q.rating) return { rating: q.rating, rating_basis: 'explicit' };
   const norm = normalizeIssuer(q.issuer_raw);
   if (norm) {
@@ -229,7 +249,7 @@ export function mad(values) {
 /** 관측 1건 → 축 라벨 부착. offset_bp 는 그대로 둔다(여기서 값을 바꾸지 않는다). */
 export function annotate(quote, todayStr) {
   const sec = classifySector(quote);
-  const rat = resolveRating(quote);
+  const rat = resolveRating(quote, sec.sector);
   return {
     ...sec,
     rating: rat.rating,

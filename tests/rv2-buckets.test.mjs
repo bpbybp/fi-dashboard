@@ -26,13 +26,40 @@ test('상수 — 표본 가드 n=8, MAD k=2.5 (§6 결정 1·2)', () => {
   assert.deepEqual(RV2_TENOR_GRID.map((g) => g.key), ['~1y', '1-2', '2-3', '3-5', '5-10', '10y+']);
 });
 
-test('RWA 리스트는 명령서 §2.2 확정 전까지 비어 있다 (의도된 상태)', () => {
-  // 위험가중치를 잘못 붙이면 그 자체가 오염이다. 리스트가 오면 이 두 상수만 채운다.
-  // 이 테스트가 깨지는 시점 = §2.2 를 반영한 시점. 그때 기대값을 갱신하면 된다.
-  assert.equal(RWA0_ISSUERS.size, 0, '§2.2 반영 시 이 값을 갱신할 것');
-  assert.equal(RWA20_ISSUERS.size, 0, '§2.2 반영 시 이 값을 갱신할 것');
-  // 비어 있으면 모든 공사·공단이 '기타' 로 떨어진다 — 누락이 아니라 미확정의 정직한 표현.
-  assert.equal(classifySector(q({ issuer_raw: '한국전력1477' })).leaf, '공사·공단/기타');
+test('RWA — §2.2 확정 리스트가 반영돼 있다', () => {
+  for (const k of ['토지주택', '장학재단', '중벤공', '주금공', '자산관리공사', '신용보증기금', '기술보증기금']) {
+    assert.ok(RWA0_ISSUERS.includes(k), `RWA0 누락: ${k}`);
+  }
+  for (const k of ['한국전력', '도로공사', '가스공사', '철도공사', '수자원공사']) {
+    assert.ok(RWA20_ISSUERS.includes(k), `RWA20 누락: ${k}`);
+  }
+});
+
+test('RWA — 회차가 붙어도 잡는다 (부분 문자열 매칭)', () => {
+  // 정확일치였다면 원문의 `도로공사978`·`한국전력1477` 을 하나도 못 잡는다.
+  assert.equal(classifySector(q({ issuer_raw: '도로공사978' })).leaf, '공사·공단/RWA20');
+  assert.equal(classifySector(q({ issuer_raw: '한국전력1477' })).leaf, '공사·공단/RWA20');
+  assert.equal(classifySector(q({ issuer_raw: '한전1415' })).leaf, '공사·공단/RWA20', '한전=한국전력');
+  assert.equal(classifySector(q({ issuer_raw: '토지주택채권155' })).leaf, '공사·공단/RWA0');
+  assert.equal(classifySector(q({ issuer_raw: '중벤공787' })).leaf, '공사·공단/RWA0');
+});
+
+test('RWA — 분기는 섹터 우선. 특은 소속은 공사 세분화에 쓰이지 않는다 (§2.2 주의사항)', () => {
+  // 산업은행·중소기업은행·수출입은행은 RWA0 리스트에 있지만 섹터가 특은이다.
+  for (const name of ['산금채', '중금채', '수출입채']) {
+    const r = classifySector(q({ issuer_raw: name }));
+    assert.equal(r.sector, '특은', name);
+    assert.equal(r.rwa, null, '특은 리프는 RWA 하위축을 갖지 않는다');
+    assert.ok(!r.leaf.includes('RWA'));
+  }
+});
+
+test('RWA — §2.2 에 없는 발행사는 기타로 둔다', () => {
+  // `국가철도공단` 은 §2.2 의 `철도공사`(코레일)와 다른 발행사다. 임의로 끼워 넣지 않는다.
+  assert.equal(classifySector(q({ issuer_raw: '국가철도공단410' })).leaf, '공사·공단/기타');
+  assert.equal(classifySector(q({ issuer_raw: '경기주택도시공사' })).leaf, '공사·공단/기타');
+  // `연합자산관리`(UAMCO)는 `자산관리공사`(캠코)가 아니다 — 부분 문자열이 겹치지 않는다.
+  assert.equal(classifySector(q({ issuer_raw: '연합자산관리' })).sector, '회사채');
 });
 
 // ── 발행사 정규화 ───────────────────────────────────────────────────────
@@ -57,7 +84,7 @@ test('normalizeIssuer — `국민은행` 의 민을 민평으로 오인하지 �
 // ── 1축 섹터 ────────────────────────────────────────────────────────────
 
 test('섹터 — 특은. 수협은행 귀속을 명시한다 (§6 결정 4)', () => {
-  for (const name of ['중금채', '산금채', '기업은행', '수출입채', '농금은행', '중벤공787']) {
+  for (const name of ['중금채', '산금채', '기업은행', '수출입채', '농금은행']) {
     assert.equal(classifySector(q({ issuer_raw: name })).sector, '특은', name);
   }
   // "수금" = 수협은행(rv-abbrev 확정). 수협중앙회도 같은 특수채 계열로 둔다.
@@ -75,11 +102,12 @@ test('섹터 — 은행 3분류가 서로 새지 않는다', () => {
   assert.equal(classifySector(q({ issuer_raw: '전북은행' })).sector, '지방은행');
 });
 
-test('섹터 — 공사·공단은 RWA 하위축을 갖는다', () => {
+test('섹터 — 공사·공단은 RWA 하위축을 갖는다. 중벤공은 은행이 아니라 공단이다', () => {
   const r = classifySector(q({ issuer_raw: '국가철도공단410' }));
   assert.equal(r.sector, '공사·공단');
-  assert.equal(r.rwa, '기타', '§2.2 미반영 상태');
   assert.equal(r.leaf, '공사·공단/기타');
+  // 중소벤처기업진흥공단 — §2.2 가 RWA0 실효 대상으로 공사·공단에 둔다(특은 아님).
+  assert.equal(classifySector(q({ issuer_raw: '중벤공787' })).sector, '공사·공단');
   // 다른 섹터는 rwa 를 갖지 않는다.
   assert.equal(classifySector(q({ issuer_raw: '중금채' })).rwa, null);
 });
@@ -196,9 +224,9 @@ test('가드 — 판정은 offset_bp 유효 관측 기준이다 (미상은 세�
 
 test('가드 — n<8 리프는 섹터 → 세션 순으로 롤업한다', () => {
   const mk = (issuer, n, off) => Array.from({ length: n }, () => q({ issuer_raw: issuer, offset_bp: off }));
-  // 공사·공단/기타 10건(중앙값 5) + 지방채 2건(중앙값 -3)
+  // 공사·공단/RWA20 10건(중앙값 5) + 지방채 2건(중앙값 -3)
   const { rows, leaves } = buildBuckets([...mk('한국전력1477', 10, 5), ...mk('대구광역시채권1', 2, -3)], { todayStr: TODAY });
-  assert.equal(leaves.get('공사·공단/기타').n, 10);
+  assert.equal(leaves.get('공사·공단/RWA20').n, 10);
   assert.equal(leaves.get('지방채').n, 2);
 
   const gongsa = rows.find((r) => r.sector === '공사·공단');
@@ -256,15 +284,24 @@ test('픽스처 — rankable 1,020건의 리프 분포를 고정한다', () => {
   const dist = {};
   for (const [k, b] of fx.leaves) dist[k] = b.n;
   assert.deepEqual(dist, {
-    특은: 350, 회사채: 173, '여전-캐피탈': 158, '공사·공단/기타': 152,
+    특은: 334, 회사채: 173, '여전-캐피탈': 158,
+    '공사·공단/기타': 88, '공사·공단/RWA20': 52, '공사·공단/RWA0': 28,
     '시은-시중계': 71, '여전-카드': 65, 증권채: 24, '국고·통안': 17,
     지방채: 9, 지방은행: 1,
   });
+  // RWA 3분할이 실제로 갈린다 — 통합(−0.70) 하나로 뒀을 때는 안 보이던 차이다.
+  assert.equal(fx.leaves.get('공사·공단/RWA20').median, -3.1);
+  assert.equal(fx.leaves.get('공사·공단/RWA0').median, -1.4);
+  assert.equal(fx.leaves.get('공사·공단/기타').median, -0.7);
 });
 
-test('픽스처 — n<8 리프는 1개(관측 1건)뿐이다 → n=8 유지 근거', () => {
-  assert.equal(fx.stats.leaves, 10);
+test('픽스처 — RWA 3분할 후에도 n<8 리프는 1개(관측 1건)뿐 → n=8 유지 근거', () => {
+  assert.equal(fx.stats.leaves, 12);
   assert.equal(fx.stats.leavesUnderGuard, 1, '지방은행 n=1');
+  // 3분할된 공사·공단 3칸이 전부 가드를 넘는다(28·52·88).
+  for (const k of ['공사·공단/RWA0', '공사·공단/RWA20', '공사·공단/기타']) {
+    assert.ok(fx.leaves.get(k).n >= RV2_MIN_BUCKET_SAMPLE, k);
+  }
   assert.equal(fx.stats.observationsUnderGuard, 1);
   // 롤업이 예외로 남는다 — Phase 0 §6 결정 1이 우려한 "롤업이 기본" 상황이 아니다.
   assert.equal(fx.stats.rollupLeaf, 1019);
@@ -272,12 +309,26 @@ test('픽스처 — n<8 리프는 1개(관측 1건)뿐이다 → n=8 유지 근�
   assert.equal(fx.stats.rollupSession, 1);
 });
 
-test('픽스처 — rating_basis 분해. 역매핑이 등급미상을 75.4% → 28.1% 로 줄인다', () => {
-  assert.deepEqual(fx.stats.ratingBasis, { explicit: 254, issuer_mapped: 479, unknown: 287 });
+test('픽스처 — rating_basis 분해. 역매핑이 등급미상을 75.4% → 26.5% 로 줄인다', () => {
+  assert.deepEqual(fx.stats.ratingBasis, {
+    explicit: 254, issuer_mapped: 479, unknown: 270, not_applicable: 17,
+  });
   const pct = (n) => Math.round((n / rankable.length) * 1000) / 10;
   assert.equal(pct(254), 24.9);
   assert.equal(pct(479), 47.0);
-  assert.equal(pct(287), 28.1, 'Phase 0 실측 75.4% 대비');
+  assert.equal(pct(270), 26.5, 'Phase 0 실측 75.4% 대비');
+  // 국고·통안 17건은 미상이 아니라 비적용이다. 섞으면 등급미상 비율이 부풀려진다.
+  assert.equal(pct(17), 1.7);
+});
+
+test('등급 — 국고·통안은 등급 축 비적용. 미상과 분리한다', () => {
+  const r = resolveRating(q({ issuer_raw: '국고이자' }));
+  assert.deepEqual(r, { rating: null, rating_basis: 'not_applicable' });
+  assert.equal(resolveRating(q({ issuer_raw: '국주 23-05' })).rating_basis, 'not_applicable');
+  // 픽스처의 국고·통안 리프 17건이 전부 비적용으로 떨어진다.
+  const gg = fx.rows.filter((x) => x.sector === '국고·통안');
+  assert.equal(gg.length, 17);
+  assert.ok(gg.every((x) => x.rating_basis === 'not_applicable'));
 });
 
 test('픽스처 — sector_basis 분해. default(회사채 추정) 비율을 드러낸다', () => {
