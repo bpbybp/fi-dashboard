@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {
   parseRv2, prepass, computeOffset, parseTradeStatus, parseVolume,
   parseUnder, parseOver, parseTenorSpan, instrumentKey, levelKey,
+  parseMinpyeongRv2, parseActualYieldRv2,
 } from '../js/rv2-parser.js';
 
 const L = (...lines) => lines.join('\n');
@@ -329,12 +330,13 @@ test('픽스처 분류표 — 보고 §5.0 수치를 고정한다', () => {
 
 test('픽스처 오프셋 — 보고 §5.0.1·필수행2 수치를 고정한다', () => {
   const s = fixture.stats;
-  assert.equal(s.rankable, 932, '랭킹 가능 = 개별호가의 25.9%');
-  assert.equal(s.offset_missing, 2664);
+  assert.equal(s.rankable, 1020, '랭킹 가능 = 개별호가의 28.4% (B-7·B-8 폴백 전 932 = 25.9%)');
+  assert.equal(s.offset_missing, 2576); // 폴백 전 2,664
   assert.deepEqual(s.offset_missing_by_basis, {
-    won_unresolved: 457,
-    unknown: 2150,
-    no_minpyeong: 57,
+    // 폴백 전: won_unresolved 457 / unknown 2,150 / no_minpyeong 57
+    won_unresolved: 375,
+    unknown: 2136,
+    no_minpyeong: 65,
   });
 
   const byBasis = {};
@@ -342,17 +344,18 @@ test('픽스처 오프셋 — 보고 §5.0.1·필수행2 수치를 고정한다'
     if (q.offset_bp != null) byBasis[q.offset_basis] = (byBasis[q.offset_basis] || 0) + 1;
   }
   // under 186건은 rv-parser 에 없는 표현이다. RV-2 자체 처리가 없으면 전부 flat 0 으로 오인된다(B-1).
-  assert.deepEqual(byBasis, { explicit: 453, flat: 243, under: 186, over: 38, bp: 12 });
+  // 폴백 전: explicit 453 / flat 243. 민평·수익률이 복구되며 explicit 로 승격됐다.
+  assert.deepEqual(byBasis, { explicit: 546, flat: 238, under: 186, over: 38, bp: 12 });
 });
 
 test('픽스처 필수행1 — 레벨 없는 개별 호가는 offset_basis=unknown 과 같은 모집단', () => {
   const noLevel = fixture.quotes.filter((q) => q.actual_yield == null && q.offset_basis === 'unknown');
-  assert.equal(noLevel.length, 2150);
+  assert.equal(noLevel.length, 2136); // 폴백 전 2,150
   assert.equal(noLevel.length, fixture.stats.offset_missing_by_basis.unknown, '§5.1 등식');
 
   // B-6 모집단: 레벨은 없는데 민평은 있다 → RV-1 폴백 flat 이 "민평에 판다"로 오인하는 라인.
   // 개별호가의 50.9%. 이 수가 크다는 것이 B-6 을 1순위로 올린 근거다(보고 §5.1).
-  assert.equal(noLevel.filter((q) => q.minpyeong_yield != null).length, 1829);
+  assert.equal(noLevel.filter((q) => q.minpyeong_yield != null).length, 1960); // 폴백 전 1,829
 });
 
 // ── 오프셋 basis 별 실데이터 라인 ────────────────────────────────────────
@@ -462,41 +465,65 @@ test('실데이터 — 채용공고는 미분류로 남되 버려지지 않는�
 
 // ── 알려진 갭: 현재 동작을 고정한다 (고칠 때 여기가 먼저 깨진다) ─────────
 
-test('B-7 갭 — parseMinpyeong 이 `민평 N`·`민:N` 표기를 놓친다 (현행 고정)', () => {
-  // 픽스처 198건. 인식하는 형태와 못 하는 형태를 나란히 둔다.
-  assert.equal(quoteOf('27.4.9 하나은행(민3.517, 끝.73) 팔자').minpyeong_yield, 3.517, '`민N` 은 인식');
-  assert.equal(quoteOf('28.1.10 중금(사) 언더3 팔자 (민3.751)').minpyeong_yield, 3.751, '`(민N)` 은 인식');
+test('B-7 수정 — 민평 표기 이형을 RV-2 계층 폴백으로 건진다', () => {
+  // 기저 파서가 읽는 형태는 그대로 위임한다(basis 'base').
+  assert.equal(quoteOf('27.4.9 하나은행(민3.517, 끝.73) 팔자').minpyeong_basis, 'base');
+  assert.equal(quoteOf('28.1.10 중금(사) 언더3 팔자 (민3.751)').minpyeong_yield, 3.751);
 
-  // ↓ 전부 원문에 민평이 있는데 null 이 된다. 고치면 이 세 줄이 깨진다 — 그게 신호다.
-  assert.equal(quoteOf('26.12.10 가스공사511  민평3.112  끝전06  팔자 100억').minpyeong_yield, null, '`민평N` 미인식');
-  assert.equal(quoteOf('27.2.4(목) 중금채 (민평 3.242%/ 끝.91/ 쿠폰 2.88%) 팔자').minpyeong_yield, null, '`민평 N` 미인식');
-  assert.equal(quoteOf('27.8.27(금) SBS14-2 (민:3.957% / 끝.79 / AA ) 민 팔자').minpyeong_yield, null, '`민:N` 미인식');
+  // ↓ 수정 전 전부 null 이던 것들. rv-parser 는 불변이므로 RV-2 폴백이 건진다.
+  for (const [line, y] of [
+    ['26.12.10 가스공사511  민평3.112  끝전06  팔자 100억', 3.112],
+    ['27.2.4(목) 중금채 (민평 3.242%/ 끝.91/ 쿠폰 2.88%) 팔자', 3.242],
+    ['27.8.27(금) SBS14-2 (민:3.957% / 끝.79 / AA ) 민 팔자', 3.957],
+    ['26.10.23 한국캐피탈(민,3.945)  10억 팔자', 3.945],
+    ['27.2.25 우리채 민~3.362 끝전 .7 -1원 팔자 3.38', 3.362],
+  ]) {
+    const q = quoteOf(line);
+    assert.equal(q.minpyeong_yield, y, `폴백: ${line}`);
+    assert.equal(q.minpyeong_basis, 'fallback');
+  }
 
-  const gap = fixture.quotes.filter((q) => q.minpyeong_yield == null && /민\s*평?\s*[:：]?\s*\d\.\d{2,4}/.test(q.raw_line));
-  assert.equal(gap.length, 198, '픽스처 실측 — 줄어들면 B-7 이 개선된 것');
+  // 오탐 가드 — 폴백은 앞이 한글이면 '민' 을 민평으로 읽지 않는다(lookbehind).
+  // `국민,3.05` 는 기저가 못 읽는 형태라 폴백 경로로 들어오는데, 가드가 없으면 3.05 를 잡는다.
+  assert.equal(parseMinpyeongRv2('26.9.23 국민,3.05 팔자'), null);
+  assert.equal(parseMinpyeongRv2('26.9.23 중금채 민,3.05 팔자').yield, 3.05, '앞이 한글이 아니면 잡는다');
+  // ⚠ 기저 파서(`민\.?\s*N`)에는 이 가드가 없어 `국민 3.05` 를 여전히 3.05 로 읽는다 —
+  //   rv-parser 불변이라 여기서 고치지 않는다. 별건(§7 B-11).
+  assert.equal(quoteOf('26.9.23 국민 3.05 팔자').minpyeong_basis, 'base');
+
+  const gap = fixture.quotes.filter((q) => q.minpyeong_yield == null && /민\s*평?\s*[:：,~]?\s*\d\.\d{2,4}/.test(q.raw_line));
+  assert.equal(gap.length, 0, '수정 전 198건');
+  assert.equal(fixture.stats.minpyeong_fallback, 215, '폴백이 건진 총 건수');
 });
 
-test('B-8 갭 — parseActualYield 가 `3.602팔자`(공백 없음)를 놓친다 (현행 고정)', () => {
+test('B-8 수정 — 공백 없는 `3.602팔자` 를 RV-2 계층 폴백으로 건진다', () => {
   const q = quoteOf('27.8.3  중금채  민3.610(끝전.3).. 민+1원 3.602팔자 (SK 0000-1025)');
   assert.equal(q.minpyeong_yield, 3.61);
-  assert.equal(q.actual_yield, null, '공백이 있으면 3.602 를 잡는다. 붙으면 놓친다');
-  assert.equal(q.offset_basis, 'won_unresolved', '인식되면 explicit / −0.8bp 가 되어야 할 관측');
+  assert.equal(q.actual_yield, 3.602, '수정 전 null');
+  assert.equal(q.offset_basis, 'explicit', '수정 전 won_unresolved');
+  assert.equal(q.offset_bp, -0.8);
+
+  // 기저가 읽는 형태(공백 있음)는 그대로 — 폴백은 기저 실패 시에만 돈다.
+  assert.equal(quoteOf('중금채 27.8.3 3.650 팔자 (민 3.610)').actual_yield, 3.65);
 
   const gap = fixture.quotes.filter((x) => x.actual_yield == null && /\d\.\d{2,4}(?:팔자|사자)/.test(x.raw_line));
-  assert.equal(gap.length, 43, '픽스처 실측');
+  assert.equal(gap.length, 0, '수정 전 43건');
 });
 
-test('B-9 갭 — 만기 없는 `3.30 팔자` 에서 방어가 레벨을 지운다 (RV-2 자체 결함, 현행 고정)', () => {
+test('B-9 수정 — 저신뢰 만기는 방어 대상에서 빼 레벨을 살린다', () => {
   const q = quoteOf('3.30 팔자 (한양증권 00-0000-1084)');
-  // parseMaturity 가 `3.30` 을 2026-03-30(confidence low)으로 오인 → 방어가 그 문자열을
-  // 가격 파서 입력에서 제거 → 유일한 레벨이 사라진다.
+  // parseMaturity 가 `3.30` 을 2026-03-30(confidence low)으로 오인하는 것 자체는
+  // rv-parser 소관이라 그대로다. 다만 **확신 없는 매칭으로 가격 파서 입력을 지우지는 않는다.**
   assert.equal(q.maturity_confidence, 'low');
-  assert.equal(q.actual_yield, null);
-  assert.equal(q.offset_basis, 'unknown');
+  assert.equal(q.actual_yield, 3.3, '수정 전 null — 유일한 레벨이 지워졌었다');
+  assert.equal(q.offset_basis, 'no_minpyeong', '민평 앵커가 없어 오프셋은 여전히 정의 불가');
 
-  // 과거 만기가 붙은 호가는 이 오탐의 관측 가능한 흔적이다.
+  // 고신뢰 만기에서는 방어가 그대로 동작한다(만기 꼬리를 수익률로 읽지 않는다).
+  assert.equal(quoteOf('도로공사975 30.5.20 팔자').actual_yield, null);
+
+  // 잔여: 만기일 자체는 여전히 과거 날짜다 — rv-parser 소관(§7 B-9 잔여).
   const past = fixture.quotes.filter((x) => x.maturity_date && x.maturity_date < '2026-08-05');
-  assert.equal(past.length, 11, '픽스처 실측 — B-9 수정 시 줄어야 한다');
+  assert.equal(past.length, 11);
 });
 
 test('갭 — parseBroker 는 점·공백 구분 번호를 딜러 ID 로 잡지 못한다 (현행 고정)', () => {

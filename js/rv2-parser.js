@@ -69,6 +69,24 @@ export const RV2_FLAT_RE = /민평?\s*(?:팔자|사자)|플랫|\bflat\b|\.\.(?:�
 /** 수량 — "100억", "50억*5장", "50억*2". */
 export const RV2_VOLUME_RE = /(\d+(?:\.\d+)?)\s*억(?:\s*[*x×]\s*(\d+)\s*장?)?/;
 
+/**
+ * 민평 표기 이형 폴백(B-7). rv-parser 의 `parseMinpyeong` 은 `민 3.610`·`민3.517` 만 읽고
+ * **`민평 3.242` / `민:3.957%` / `민평3.112` / `민,3.945` 를 놓친다** — 픽스처 198건.
+ * rv-parser 는 불변이므로 여기서 보충한다(언더N 과 같은 구조).
+ *
+ * `(?<![가-힣])` 가 핵심이다. 이게 없으면 "국민 3.05 팔자" 의 `민`이 걸린다.
+ * 기저 파서는 이 가드가 없지만, 폴백은 **기저가 실패했을 때만** 도는 만큼 더 엄격하게 간다.
+ */
+export const RV2_MINPYEONG_FALLBACK_RE = /(?<![가-힣])민\s*평?\s*[:：,~～]?\s*(\d+\.\d{2,4})/;
+
+/**
+ * 명시 수익률 폴백(B-8). 기저 `parseActualYield` 는 `(\d+\.\d+)%?\s+(?:팔자|사자|…)` 로
+ * **공백을 필수**로 요구해 `3.602팔자` 를 놓친다 — 픽스처 43건.
+ * 기저와 같은 전처리(민/민평 괄호 제거)를 거친 뒤 공백 없는 형태만 추가로 잡는다.
+ */
+export const RV2_YIELD_NOSPACE_RE = /(\d+\.\d+)%?(?:팔자|사자|매도|매수)/;
+const RV2_MINPYEONG_PAREN_RE = /[(\[](민|민평)[^)\]]*[)\]]/g;
+
 const round2 = (x) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : null);
 
 // ── 프리패스 ─────────────────────────────────────────────────────────────
@@ -116,6 +134,36 @@ export function parseVolume(content) {
   if (!Number.isFinite(unit)) return null;
   const lots = m[2] ? parseInt(m[2], 10) : 1;
   return { unit_eok: unit, lots, total_eok: round2(unit * lots), raw: m[0].trim() };
+}
+
+/**
+ * 민평 — 기저 파서 우선, 실패 시 표기 이형 폴백(B-7).
+ * 끝전은 기저가 성공했을 때만 나온다. 폴백 경로에서는 기저의 끝전 패턴을 재사용할 수 없어
+ * (`parseMinpyeong` 이 수익률 매칭 위치를 기준으로 끝전을 찾기 때문) `끝.NN`·`끝전 : N` 만 본다.
+ * @returns {{ yield: number, kkeutjeon: number|null, basis: 'base'|'fallback' } | null}
+ */
+export function parseMinpyeongRv2(content) {
+  const base = parseMinpyeong(content);
+  if (base && base.yield != null) return { ...base, basis: 'base' };
+  if (!content || typeof content !== 'string') return null;
+  const m = content.match(RV2_MINPYEONG_FALLBACK_RE);
+  if (!m) return null;
+  const y = parseFloat(m[1]);
+  if (!Number.isFinite(y)) return null;
+  let kkeutjeon = null;
+  const kk = content.match(/끝전?\s*[:：]?\s*\.?(\d+)/);
+  if (kk) kkeutjeon = parseFloat('0.' + kk[1]);
+  return { yield: y, kkeutjeon, basis: 'fallback' };
+}
+
+/** 명시 수익률 — 기저 파서 우선, 실패 시 공백 없는 형태 폴백(B-8). */
+export function parseActualYieldRv2(content) {
+  const base = parseActualYield(content);
+  if (base != null) return base;
+  if (!content || typeof content !== 'string') return null;
+  const cleaned = content.replace(RV2_MINPYEONG_PAREN_RE, '');
+  const m = cleaned.match(RV2_YIELD_NOSPACE_RE);
+  return m ? parseFloat(m[1]) : null;
 }
 
 /** 언더N → number | null (bp, 부호 없는 크기) */
@@ -233,7 +281,15 @@ function extract(item) {
   //    만기 꼬리 '5.20' 을 수익률로 읽는다(`(\d+\.\d+)\s*팔자` 매칭). RV-1은 민평이 함께
   //    있어야 괴리를 내므로 가려졌지만, RV-2는 이 값이 곧 호가 레벨·중복키가 되므로 치명적이다.
   //    parseIssuerRaw 가 만기를 인자로 받아 지우는 것과 같은 이유·같은 처리다.
-  const priceText = matched ? c.split(matched).join(' ') : c;
+  //
+  //    ── B-9 수정 (2026-08-05) ──
+  //    **confidence 가 low 인 만기는 방어에서 제외한다.** `3.30 팔자` 처럼 만기 없이
+  //    수익률만 던지는 전단채/PF 라인에서 parseMaturity 가 `3.30` 을 2026-03-30(low)으로
+  //    오인하는데, 그 위에서 방어가 돌면 **유일한 레벨이 지워진다** — 픽스처 9건.
+  //    확신 없는 매칭으로 가격 파서 입력을 삭제하는 것이 오류의 본질이다.
+  //    (만기일 자체가 틀리는 것은 rv-parser 소관이라 여기서 고치지 않는다 — §7 B-9 잔여.)
+  const useMaturityGuard = matched && maturity.confidence !== 'low';
+  const priceText = useMaturityGuard ? c.split(matched).join(' ') : c;
 
   // ── 방어 2: 범위 표현의 물결표가 종목코드 마커로 오인되는 것을 막는다.
   //    parseIssuerRaw 의 `[~～]([A-Z]?\d+)` 가 "2~3년" 에서 bond_code '3' 을 만들어내고,
@@ -241,7 +297,7 @@ function extract(item) {
   const issuerText = priceText.replace(RV2_RANGE_RE, ' ');
 
   const issuer = parseIssuerRaw(issuerText, '');
-  const minpyeong = parseMinpyeong(priceText);
+  const minpyeong = parseMinpyeongRv2(priceText); // B-7 폴백 포함
   const spread = parseSpread(priceText);
   const broker = parseBroker(c); // 딜러태그는 원문 괄호 구조가 필요하다
   return {
@@ -255,7 +311,7 @@ function extract(item) {
     broker,
     side: parseSide(c),
     rating: parseRating(priceText),
-    actual_yield: parseActualYield(priceText),
+    actual_yield: parseActualYieldRv2(priceText), // B-8 폴백 포함
     tags: parseTags(c),
     status: parseTradeStatus(c),
     volume: parseVolume(priceText),
@@ -319,6 +375,8 @@ function toQuote(r) {
     side: r.side,
     minpyeong_yield,
     minpyeong_kkeutjeon: r.minpyeong ? r.minpyeong.kkeutjeon : null,
+    // 'base' = rv-parser 가 읽음 / 'fallback' = RV-2 표기 이형 폴백(B-7)이 건짐
+    minpyeong_basis: r.minpyeong ? r.minpyeong.basis : null,
     actual_yield: r.actual_yield,
     spread_type: r.spread ? r.spread.type : null,
     spread_value: r.spread ? r.spread.value : null,
@@ -399,6 +457,8 @@ export function parseRv2(rawText) {
       return acc;
     }, {}),
     rankable: quotes.filter((q) => q.offset_bp != null && !q.is_cp_cd).length,
+    // RV-2 계층 폴백이 건진 건수(B-7). 0 이 되면 rv-parser 쪽이 개선됐다는 뜻이다.
+    minpyeong_fallback: quotes.filter((q) => q.minpyeong_basis === 'fallback').length,
   };
 
   return { quotes, demand, unclassified, stats };
