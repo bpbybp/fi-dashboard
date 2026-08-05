@@ -16,6 +16,7 @@
 //   이상치는 **색상으로만** 표시한다. "싸다/비싸다/잡을 만하다" 같은 판단 텍스트를 쓰지 않는다.
 
 import { parseRv2, instrumentKey, levelKey } from './rv2-parser.js';
+import { buildBuckets, RV2_MIN_BUCKET_SAMPLE, RV2_MAD_K } from './rv2-buckets.js';
 
 const LS_SESSION = 'rv2-session';
 const LS_THEME = 'rv2-theme';
@@ -104,7 +105,7 @@ function render() {
     return;
   }
   $('rv2-summary').innerHTML = renderSummary(quotes);
-  $('rv2-ranking').innerHTML = '';   // Phase 3-2
+  $('rv2-ranking').innerHTML = renderRanking(quotes);
   $('rv2-demand').innerHTML = '';    // Phase 3-3
   $('rv2-unclassified').innerHTML = ''; // Phase 3-3
 }
@@ -140,6 +141,98 @@ function renderSummary(quotes) {
       <div class="stat-sub">사자 패널</div></div>
   </div>
   ${missing.length ? `<div class="footnote" style="margin-top:8px">오프셋 미상 사유: ${reasons}</div>` : ''}`;
+}
+
+// ── 버킷 드릴다운 랭킹 ───────────────────────────────────────────────────
+
+const fmt = (x, d = 2) => (x == null ? '—' : x.toFixed(d));
+const signed = (x, d = 2) => (x == null ? '—' : (x > 0 ? '+' : '') + x.toFixed(d));
+
+const RATING_LABEL = { explicit: '명시', issuer_mapped: '역매핑', unknown: '미상', not_applicable: '비적용' };
+
+/**
+ * 버킷별 접이식 랭킹.
+ *
+ * 버킷 헤더에 **n · 중앙값 · MAD · 미상 카운트 · rating_basis 분해**를 전부 적는다.
+ * n 만 보면 그 버킷의 랭킹이 대표성 있는 줄 오해한다 — 미상이 몇 건인지, 등급이 실제
+ * 명시된 것인지 역매핑인지가 같이 보여야 사용자가 신뢰 수준을 스스로 판단한다.
+ *
+ * 정렬은 **조정오프셋 내림차순**(= 싸게 나온 순). 버킷 중앙값을 뺀 뒤라 시장 베타가 빠진 값이다.
+ */
+function renderRanking(quotes) {
+  const rankable = quotes.filter((q) => q.offset_bp != null && !q.is_cp_cd);
+  if (!rankable.length) return '<div class="sec-title">랭킹</div><div class="empty">오프셋이 산출된 호가가 없습니다.</div>';
+
+  const { leaves, rows, session } = buildBuckets(rankable, { todayStr: SESSION.dateKey });
+  // 랭킹 제외군(CP·CD·유동화)은 rows 에는 있지만 리프가 없다 — 여기서도 뺀다.
+  const ranked = rows.filter((r) => r.adjustedOffset != null);
+
+  const byLeaf = new Map();
+  for (const r of ranked) {
+    if (!byLeaf.has(r.leaf)) byLeaf.set(r.leaf, []);
+    byLeaf.get(r.leaf).push(r);
+  }
+
+  const head = `<div class="sec-title">버킷별 랭킹
+    <span class="cap">조정오프셋 = 오프셋 − 버킷 중앙값 · 내림차순(민평 대비 높은 수익률이 위)</span></div>
+    <div class="footnote" style="margin-bottom:10px">세션 전체 n=<b>${session.n}</b> ·
+      중앙값 <b>${signed(session.median)}</b>bp · MAD <b>${fmt(session.mad)}</b> ·
+      표본 가드 n&lt;${RV2_MIN_BUCKET_SAMPLE} → 상위 롤업 · 이상치 |Δ|&gt;${RV2_MAD_K}×MAD</div>`;
+
+  const blocks = [...byLeaf.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([leaf, list]) => {
+      const b = leaves.get(leaf) || { n: 0, median: null, mad: null, missing: 0 };
+      const rb = list.reduce((a, r) => { a[r.rating_basis] = (a[r.rating_basis] || 0) + 1; return a; }, {});
+      const rbText = Object.entries(rb).sort((x, y) => y[1] - x[1])
+        .map(([k, v]) => `${RATING_LABEL[k] || k} ${v}`).join(' · ');
+      const thin = b.n < RV2_MIN_BUCKET_SAMPLE;
+      const sorted = [...list].sort((x, y) => y.adjustedOffset - x.adjustedOffset);
+
+      return `<details class="bucket"${byLeaf.size <= 3 ? ' open' : ''}>
+        <summary>
+          <span class="b-name">${esc(leaf)}</span>
+          <span class="b-meta${thin ? ' b-warn' : ''}">n=${b.n}${thin ? ` (가드 미달 · ${esc(sorted[0].medianSource)} 중앙값 사용)` : ''}</span>
+          <span class="b-meta">중앙값 ${signed(b.median)}bp · MAD ${fmt(b.mad)}</span>
+          <span class="b-meta${b.missing ? ' b-warn' : ''}">오프셋 미상 ${b.missing}</span>
+          <span class="b-meta">등급 ${esc(rbText)}</span>
+        </summary>
+        <div class="b-body">${rankTable(sorted)}</div>
+      </details>`;
+    }).join('');
+
+  return head + blocks;
+}
+
+function rankTable(list) {
+  const trs = list.map((r) => {
+    const q = r.q;
+    const side = q.side === 'bid' ? '<span class="side-bid">사자</span>' : '<span class="side-offer">팔자</span>';
+    const status = q.status === 'traded' ? '<span class="badge">체결</span>'
+      : q.status === 'matched_market' ? '<span class="badge">대치</span>' : '';
+    const ratingCell = q.rating ? esc(q.rating)
+      : r.rating ? `${esc(r.rating)}<span class="badge" title="발행사 역매핑">역</span>`
+        : r.rating_basis === 'not_applicable' ? '<span class="badge">비적용</span>' : '—';
+    return `<tr class="${r.outlier ? 'is-outlier' : ''}">
+      <td>${side}${status}</td>
+      <td>${esc(q.issuer_raw) || '—'}</td>
+      <td class="mono">${esc(q.bond_code) || '—'}</td>
+      <td class="mono">${esc(q.maturity_date) || '—'}</td>
+      <td class="mono">${esc(r.tenor) || '—'}</td>
+      <td>${ratingCell}</td>
+      <td class="num">${fmt(q.minpyeong_yield, 3)}</td>
+      <td class="num">${signed(q.offset_bp, 1)}</td>
+      <td class="num off">${signed(r.adjustedOffset, 1)}</td>
+      <td class="mono">${esc(q.offset_basis)}</td>
+      <td class="mono">${q.volume ? `${q.volume.total_eok}억` : '—'}</td>
+      <td class="mono">${esc(q.broker) || '—'}</td>
+    </tr>`;
+  }).join('');
+  return `<table class="q"><thead><tr>
+    <th>방향</th><th>발행사</th><th>종목</th><th>만기</th><th>구간</th><th>등급</th>
+    <th class="num">민평%</th><th class="num">오프셋</th><th class="num">조정</th>
+    <th>산출근거</th><th>수량</th><th>브로커</th>
+  </tr></thead><tbody>${trs}</tbody></table>`;
 }
 
 // ── 이벤트 ───────────────────────────────────────────────────────────────
