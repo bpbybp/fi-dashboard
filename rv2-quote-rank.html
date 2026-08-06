@@ -97,6 +97,33 @@
   .t-map { font-size: 10.5px; color: var(--muted); border: 1px solid var(--border-2); border-radius: 4px; padding: 0 5px; }
   .bucket .b-tenor { color: var(--muted); opacity: 0.85; }
 
+  /* ── 섹터 색상 (v1.3) ─────────────────────────────────────────────────
+     카테고리 구분용 색상일 뿐 판단·시그널이 아니다 — 측정만 한다.
+     계열별 색상 패밀리: 정부계=녹청 · 은행계=파랑 · 여전=주황 · 증권=보라 · 회사채=갈색 */
+  :root {
+    --sc-govt: #4a6a8c; --sc-muni: #237878; --sc-agency: #2f8f4e;
+    --sc-sbank: #2b6cb0; --sc-cbank: #4c51bf; --sc-ibank: #6d5bc4;
+    --sc-rbank: #2f7fa6; --sc-bhold: #1f4e79;
+    --sc-card: #b45309; --sc-capital: #9a3412;
+    --sc-sec: #7a3fb8; --sc-corp: #8d6e63; --sc-unk: #837b6d;
+  }
+  [data-cp-theme='dark'] {
+    --sc-govt: #7ba3c9; --sc-muni: #4fd1c5; --sc-agency: #3fb950;
+    --sc-sbank: #58a6ff; --sc-cbank: #7f9cf5; --sc-ibank: #a78bfa;
+    --sc-rbank: #5cc3e8; --sc-bhold: #6b9bd1;
+    --sc-card: #f0883e; --sc-capital: #fb923c;
+    --sc-sec: #c084fc; --sc-corp: #bcaaa4; --sc-unk: #8b949e;
+  }
+  .bucket { border-left: 4px solid var(--sec, var(--border)); }
+  .bucket .b-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sec, var(--muted));
+    flex: none; align-self: center; }
+  .bucket .b-name { color: var(--sec, var(--text)); }
+  .sec-head { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; }
+  .sec-head .sh-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--sec, var(--muted)); flex: none; }
+  .sec-head .sh-name { font-size: 13.5px; font-weight: 700; color: var(--sec, var(--text)); }
+  .sec-head .sh-meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .sec-head::after { content: ''; flex: 1; height: 1px; background: var(--border-2); }
+
   .side-offer { color: var(--red); font-weight: 700; }
   .side-bid { color: var(--ok); font-weight: 700; }
   .badge { font-size: 10px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--muted); }

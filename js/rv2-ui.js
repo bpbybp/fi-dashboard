@@ -295,6 +295,22 @@ const RATING_LABEL = { explicit: '명시', issuer_mapped: '역매핑', unknown: 
  *
  * 정렬은 **조정오프셋 내림차순**(= 싸게 나온 순). 버킷 중앙값을 뺀 뒤라 시장 베타가 빠진 값이다.
  */
+/**
+ * 섹터 → 색상 토큰 (v1.3). 실제 색 값은 rv2-quote-rank.html 의 --sc-* 변수가
+ * 라이트/다크 테마별로 갖는다 — JS 는 토큰만 알고 색은 CSS 가 결정한다.
+ * 카테고리 구분용 색상일 뿐 판단·시그널이 아니다(측정만 한다).
+ * 키 순서 = 범례 표시 순서(정부계 → 은행계 → 여전 → 증권 → 회사채 → 미상).
+ */
+const SECTOR_COLOR_TOKEN = {
+  '국고·통안': 'govt', '지방채': 'muni', '공사·공단': 'agency',
+  '특은': 'sbank', '시은-시중계': 'cbank', '시은-비시중계': 'ibank',
+  '지방은행': 'rbank', '은행지주': 'bhold',
+  '여전-카드': 'card', '여전-캐피탈': 'capital',
+  '증권채': 'sec', '회사채': 'corp', '분류미상': 'unk',
+};
+const SECTOR_LEGEND_ORDER = Object.keys(SECTOR_COLOR_TOKEN);
+const sectorVar = (sector) => `var(--sc-${SECTOR_COLOR_TOKEN[sector] || 'unk'})`;
+
 function renderRanking(quotes) {
   const rankable = quotes.filter((q) => q.offset_bp != null && !q.is_cp_cd);
   if (!rankable.length) return '<div class="sec-title">랭킹</div><div class="empty">오프셋이 산출된 호가가 없습니다.</div>';
@@ -317,10 +333,26 @@ function renderRanking(quotes) {
       중앙값 <b>${signed(session.median)}</b>bp · MAD <b>${fmt(session.mad)}</b> ·
       표본 가드 n&lt;${RV2_MIN_BUCKET_SAMPLE} → 섹터 롤업 · 통계 격자 ${RV2_STAT_TENOR_KEYS.join("/")} · 이상치 |Δ|&gt;${RV2_MAD_K}×MAD</div>`;
 
+  // v1.3: 섹터 → 버킷 2단 구조. 이전엔 셀 버킷을 크기순으로 평면 나열해 섹터가 뒤섞였다.
+  // 섹터 순서는 분류 규칙 순(SECTOR_LEGEND_ORDER)으로 **고정**한다 — 날마다 같은 자리에
+  // 있어야 눈이 바로 간다. 섹터 안에서는 리프 → 통계 만기(~1y/1-2/2y+/미상) 순.
+  const bySector = new Map();
+  for (const entry of byLeaf.entries()) {
+    const s = entry[1][0].sector;
+    if (!bySector.has(s)) bySector.set(s, []);
+    bySector.get(s).push(entry);
+  }
+  const sectorOrder = [
+    ...SECTOR_LEGEND_ORDER.filter((s) => bySector.has(s)),
+    ...[...bySector.keys()].filter((s) => !SECTOR_LEGEND_ORDER.includes(s)),
+  ];
+  const tenorIdx = (r) => {
+    const i = RV2_STAT_TENOR_KEYS.indexOf(r.statTenor);
+    return i === -1 ? 99 : i; // 만기미상(statTenor=null)은 맨 뒤
+  };
+
   let hiddenBuckets = 0;
-  const blocks = [...byLeaf.entries()]
-    .sort((a, b) => b[1].length - a[1].length)
-    .map(([cellKey, list]) => {
+  const renderBucketBlock = ([cellKey, list]) => {
       const sample = list[0];
       // 통계는 **적용된 기준 풀**의 것을 보여준다 — 칸이 가드를 넘으면 칸, 아니면 롤업 대상.
       const cellStat = sample.cell ? cells.get(sample.cell) : null;
@@ -348,8 +380,9 @@ function renderRanking(quotes) {
       const rollup = usedCell ? ''
         : `<span class="b-meta b-warn">가드 미달 → <b>${esc(sample.medianSource)}</b> 기준 (${esc(sample.leaf)} n=${leafStat.n})</span>`;
 
-      return `<details class="bucket"${byLeaf.size <= 3 ? ' open' : ''}>
+      return `<details class="bucket" style="--sec:${sectorVar(sample.sector)}"${byLeaf.size <= 3 ? ' open' : ''}>
         <summary>
+          <span class="b-dot"></span>
           <span class="b-name">${esc(cellKey)}</span>
           <span class="b-meta${usedCell ? '' : ' b-warn'}">${nText}</span>
           <span class="b-meta">중앙값 ${signed(b.median)}bp · MAD ${fmt(b.mad)}</span>
@@ -360,13 +393,27 @@ function renderRanking(quotes) {
         </summary>
         <div class="b-body">${groups.map((g) => rankTable(g.rows, g.key)).join('')}</div>
       </details>`;
-    }).join('');
+  };
+
+  const sections = sectorOrder.map((s) => {
+    const entries = bySector.get(s).sort((a, b) => {
+      const A = a[1][0], B = b[1][0];
+      return A.leaf === B.leaf ? tenorIdx(A) - tenorIdx(B) : A.leaf.localeCompare(B.leaf, 'ko');
+    });
+    const blocks = entries.map(renderBucketBlock).join('');
+    if (!blocks) return ''; // 필터로 섹터 전체가 비면 헤더도 뺀다
+    const total = entries.reduce((n, [, l]) => n + l.length, 0);
+    return `<div class="sec-head" style="--sec:${sectorVar(s)}">
+      <span class="sh-dot"></span><span class="sh-name">${esc(s)}</span>
+      <span class="sh-meta">버킷 ${entries.length} · n ${total}</span>
+    </div>${blocks}`;
+  }).join('');
 
   const hiddenNote = hiddenBuckets
     ? `<div class="footnote" style="margin-bottom:10px">선택한 구간에 관측이 없는 버킷 <b>${hiddenBuckets}</b>개는 표시하지 않았습니다.</div>`
     : '';
 
-  return head + renderTenorChips(ranked) + hiddenNote + blocks;
+  return head + renderTenorChips(ranked) + hiddenNote + sections;
 }
 
 function rankTable(list, tenorLabel) {
