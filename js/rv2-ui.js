@@ -284,6 +284,30 @@ function renderTenorChips(allRows) {
 const fmt = (x, d = 2) => (x == null ? '—' : x.toFixed(d));
 const signed = (x, d = 2) => (x == null ? '—' : (x > 0 ? '+' : '') + x.toFixed(d));
 
+// ── 장중 호가 변동 (RV2-d) ───────────────────────────────────────────────
+//
+// 데이터는 accumulate() 가 이미 쌓고 있다(instrument 별 observations, 최신본은 latest,
+// 통계·랭킹도 currentQuotes = 최신본 기준). 여기서는 그 이력을 **표시**만 한다.
+//
+// Δ 정의: **당일 첫 관측 대비 누적 변동**(bp) = 최신 오프셋 − 첫 오프셋.
+//   마지막 전환분이 아니라 누적을 쓰는 이유 — 장중 내내 보는 워크플로에서
+//   "오전 첫 호가 대비 얼마나 움직였나"가 질문이기 때문. 경로는 hover 이력으로 보인다.
+//   레벨이 안 바뀐 호가(재게시만)는 변동 아님 → null.
+/** @returns {{ d:number|null, obsCount:number, path:string }|null} 변동 없으면 null */
+function quoteDelta(q) {
+  const inst = SESSION.instruments[instrumentKey(q)];
+  if (!inst || inst.observations.length < 2) return null;
+  const obs = inst.observations;
+  if (new Set(obs.map((o) => o.levelKey)).size < 2) return null; // 같은 레벨 재게시만 — 변동 아님
+  const first = obs[0].q, last = inst.latest;
+  const d = first.offset_bp != null && last.offset_bp != null
+    ? Math.round((last.offset_bp - first.offset_bp) * 10) / 10 : null;
+  // hover 이력: 시각 + 표시값(수익률 우선, 없으면 오프셋bp). 최근 6개까지.
+  const val = (x) => (x.actual_yield != null ? `${x.actual_yield}%` : x.offset_bp != null ? `${signed(x.offset_bp, 1)}bp` : '·');
+  const path = obs.slice(-6).map((o) => `${o.timestamp || '—'} ${val(o.q)}`).join(' → ');
+  return { d, obsCount: obs.length, path };
+}
+
 const RATING_LABEL = { explicit: '명시', issuer_mapped: '역매핑', unknown: '미상', not_applicable: '비적용' };
 
 /**
@@ -338,7 +362,9 @@ function renderRanking(quotes) {
     <span class="cap">조정오프셋 = 오프셋 − 버킷 중앙값 · 내림차순(민평 대비 높은 수익률이 위)</span></div>
     <div class="footnote" style="margin-bottom:4px">오프셋 = 호가 수익률 − 민평(bp, +는 민평보다 높은 금리 = 싸게 나온 물건) ·
       조정 = 오프셋 − 버킷 중앙값(무리의 공통 수준을 뺀 뒤 무리 안에서의 상대 순위) ·
-      산출근거 = 오프셋 산출 방식(표 머리글에 마우스를 올리면 상세)</div>
+      Δ = 당일 첫 호가 대비 누적 변동(레벨이 바뀐 호가만, 이력은 셀에 마우스) ·
+      산출근거 = 오프셋 산출 방식(표 머리글에 마우스를 올리면 상세) ·
+      랭킹·통계는 종목별 <b>최신 호가</b> 기준</div>
     <div class="footnote" style="margin-bottom:10px">세션 전체 n=<b>${session.n}</b> ·
       중앙값 ${medianVal(session.median)} · MAD <b>${fmt(session.mad)}</b> ·
       표본 가드 n&lt;${RV2_MIN_BUCKET_SAMPLE} → 섹터 롤업 · 통계 격자 ${RV2_STAT_TENOR_KEYS.join("/")} · 이상치 |Δ|&gt;${RV2_MAD_K}×MAD</div>`;
@@ -380,6 +406,8 @@ function renderRanking(quotes) {
       const shown = applyTenorFilter(list, TENOR_FILTER);
       if (!shown.length) { hiddenBuckets++; return ''; }
       const groups = tenorGroupsOf(shown);
+      // RV2-d: 이 버킷에서 장중 레벨이 바뀐 호가 수 (필터 전 모집단 기준 — 다른 미니 카운트와 동일 원칙).
+      const changed = list.filter((r) => quoteDelta(r.q)).length;
 
       // 필터가 켜지면 표시 건수와 통계 모집단을 나란히 적는다. 섞이면 n 을 오해한다.
       const cellN = cellStat ? cellStat.n : 0;
@@ -398,6 +426,7 @@ function renderRanking(quotes) {
           <span class="b-meta">중앙값 ${medianVal(b.median)} · MAD ${fmt(b.mad)}</span>
           ${rollup}
           <span class="b-meta${b.missing ? ' b-warn' : ''}">오프셋 미상 ${b.missing}</span>
+          ${changed ? `<span class="b-meta">변동 ${changed}</span>` : ''}
           <span class="b-meta">등급 ${esc(rbText)}</span>
           <span class="b-meta b-tenor">표시구간 ${esc(miniText)}</span>
         </summary>
@@ -443,6 +472,11 @@ function rankTable(list, tenorLabel) {
     const ratingCell = q.rating ? esc(q.rating)
       : r.rating ? `${esc(r.rating)}<span class="badge" title="발행사 역매핑">역</span>`
         : r.rating_basis === 'not_applicable' ? '<span class="badge">비적용</span>' : '—';
+    // RV2-d: 장중 변동. Δ = 당일 첫 관측 대비 누적(bp). 값 산출 불가(오프셋 결측)면 Δ만 표기.
+    const dv = quoteDelta(q);
+    const deltaCell = !dv ? '—'
+      : dv.d == null ? `<span title="관측 ${dv.obsCount}회 · ${esc(dv.path)}">Δ</span>`
+        : `<b class="mv${dv.d > 0 ? ' pos' : dv.d < 0 ? ' neg' : ''}" title="관측 ${dv.obsCount}회 · ${esc(dv.path)}">${signed(dv.d, 1)}</b>`;
     return `<tr class="${r.outlier ? 'is-outlier' : ''}">
       <td>${side}${status}</td>
       <td>${esc(q.issuer_raw) || '—'}</td>
@@ -453,6 +487,7 @@ function rankTable(list, tenorLabel) {
       <td class="num">${fmt(q.minpyeong_yield, 3)}</td>
       <td class="num">${signed(q.offset_bp, 1)}</td>
       <td class="num off">${signed(r.adjustedOffset, 1)}</td>
+      <td class="num">${deltaCell}</td>
       <td class="mono">${esc(q.offset_basis)}</td>
       <td class="mono">${q.volume ? `${q.volume.total_eok}억` : '—'}</td>
       <td class="mono">${esc(q.broker) || '—'}</td>
@@ -461,6 +496,7 @@ function rankTable(list, tenorLabel) {
   return `${groupHead}<table class="q"><thead><tr>
     <th>방향</th><th>발행사</th><th>종목</th><th>만기</th><th>구간</th><th>등급</th>
     <th class="num">민평%</th><th class="num" title="호가 수익률 − 민평 수익률 (bp). +는 민평보다 높은 금리 = 싸게 나온 물건, −는 민평보다 낮은 금리 = 비싸게 나온 물건">오프셋</th><th class="num" title="오프셋 − 버킷 중앙값. 버킷(섹터×만기 무리)의 공통 수준을 뺀 값 — 같은 무리 안에서 상대적으로 싼 순서. 정렬 기준">조정</th>
+    <th class="num" title="장중 변동 — 당일 첫 관측 대비 누적(bp). 같은 호가가 다른 레벨로 재등장한 경우만. 마우스를 올리면 관측 이력">Δ</th>
     <th title="오프셋 산출 방식 — explicit: 호가 수익률과 민평이 모두 명시됨 / under·over: 언더N·오버N 표기 / bp: ±Nbp 표기 / flat: 민평팔자(=0)">산출근거</th><th>수량</th><th>브로커</th>
   </tr></thead><tbody>${trs}</tbody></table>`;
 }
