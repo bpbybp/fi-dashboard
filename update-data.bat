@@ -3,15 +3,15 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM  fi-dashboard 데이터 갱신 원클릭 (커브 RV + on/off 통합)
+REM  fi-dashboard 데이터 갱신 원클릭 (커브 RV + on/off 통합) v2
 REM  사용법: 만기확장/on-off xlsx를 레포 루트에 배치 후 더블클릭
 REM  위치:  레포 루트에 두고 실행
 REM
-REM  기존 update-curve-rv.bat / update-onoff.bat 대체.
-REM  개선점:
-REM   - 작업 전 원격 동기화 (pull --rebase --autostash)
-REM   - 커밋 후 푸시 직전에도 --autostash 로 CRLF 유령 변경에 견고
-REM   - .gitattributes 없으면 1회 자동 생성 (줄바꿈 LF 고정 = 근본 해결)
+REM  v2 변경점:
+REM   - 변경 감지를 git add 후 staged diff 로 판정
+REM     (CRLF 줄바꿈 차이만 있는 유령 변경을 정규화 후 걸러냄)
+REM   - 모듈별 경로 지정 커밋 (한 모듈 변경 없어도 다른 모듈 진행)
+REM   - 데이터 갱신분이 없어도 미푸시 로컬 커밋이 있으면 푸시 수행
 REM ============================================================
 
 cd /d "%~dp0"
@@ -43,7 +43,6 @@ if "%MODE%"=="3" set "DO_CURVE=1"
 if "%MODE%"=="3" set "DO_ONOFF=1"
 
 REM ---- [사전] .gitattributes 부트스트랩 (없을 때 1회만) ----
-set "ATTR_NEW=0"
 if exist ".gitattributes" goto attr_done
 echo.
 echo [사전] .gitattributes 없음 - 줄바꿈 규칙 생성 (CRLF rebase 오류 근본 방지)
@@ -62,7 +61,6 @@ git add .gitattributes
 if errorlevel 1 goto git_fail
 git commit -m "chore: .gitattributes 줄바꿈 규칙 추가 (CRLF rebase 오류 방지)"
 if errorlevel 1 goto git_fail
-set "ATTR_NEW=1"
 :attr_done
 
 REM ---- [1/6] 원격 동기화 ----
@@ -86,7 +84,7 @@ echo   - on/off: xlsx 변환 + 구조 검증
 node tools\convert-onoff.mjs
 if errorlevel 1 goto onoff_conv_fail
 
-REM ---- [3/6] 변경 감지 + 기준일 추출 ----
+REM ---- [3/6] 변경 감지 (add 후 staged diff 판정 = 줄바꿈 정규화 반영) ----
 :detect
 echo.
 echo [3/6] 변경 감지 + 기준일 추출 ...
@@ -96,13 +94,14 @@ set "CURVE_DATE="
 set "ONOFF_DATE="
 
 if "%DO_CURVE%"=="0" goto detect_onoff
-git status --porcelain data/credit-spread.js data/curve-rv-backtest.js | findstr . >nul
-if errorlevel 1 (
-    echo   커브 RV: 변경 없음 - 이미 최신
+git add data/credit-spread.js data/curve-rv-backtest.js 2>nul
+git diff --cached --quiet -- data/credit-spread.js data/curve-rv-backtest.js
+if not errorlevel 1 (
+    echo   커브 RV: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
     goto detect_onoff
 )
 set "CURVE_CHANGED=1"
-git --no-pager diff --stat data/credit-spread.js data/curve-rv-backtest.js
+git --no-pager diff --cached --stat -- data/credit-spread.js data/curve-rv-backtest.js
 node -e "const m=require('fs').readFileSync('data/credit-spread.js','utf8').match(/last_updated[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2})/);process.stdout.write(m?m[1]:'')" > "%TEMP%\curve_rv_date.txt"
 set /p CURVE_DATE=<"%TEMP%\curve_rv_date.txt"
 if "%CURVE_DATE%"=="" goto curve_date_fail
@@ -110,9 +109,10 @@ echo   커브 RV: %CURVE_DATE% 갱신분 감지
 
 :detect_onoff
 if "%DO_ONOFF%"=="0" goto confirm
-git status --porcelain data/onoff-ktb3y.js | findstr . >nul
-if errorlevel 1 (
-    echo   on/off: 변경 없음 - 이미 최신
+git add data/onoff-ktb3y.js 2>nul
+git diff --cached --quiet -- data/onoff-ktb3y.js
+if not errorlevel 1 (
+    echo   on/off: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
     goto confirm
 )
 set "ONOFF_CHANGED=1"
@@ -124,7 +124,7 @@ REM ---- [4/6] 커밋 확인 ----
 :confirm
 if "%CURVE_CHANGED%"=="1" goto confirm_show
 if "%ONOFF_CHANGED%"=="1" goto confirm_show
-goto nothing
+goto no_data_change
 
 :confirm_show
 echo.
@@ -134,30 +134,41 @@ if "%ONOFF_CHANGED%"=="1" echo   - data: on/off 스프레드 !ONOFF_DATE! 갱신
 set "CONFIRM="
 set /p CONFIRM=커밋 + 푸시 진행? (Y/N): 
 if /i "!CONFIRM!"=="Y" goto do_commit
-echo 중단 - 커밋하지 않았습니다. 변경은 워킹트리에 남아있습니다.
-if "%ATTR_NEW%"=="1" echo   ^(참고^) .gitattributes 커밋은 로컬에 있음 - 다음 푸시 때 함께 반영됩니다.
+git reset -q -- data/credit-spread.js data/curve-rv-backtest.js data/onoff-ktb3y.js
+echo 중단 - 커밋하지 않았습니다. 스테이징 해제, 변경은 워킹트리에 남아있습니다.
 goto end_ok
 
-REM ---- [5/6] 커밋 (모듈별 개별 커밋) ----
+REM ---- [5/6] 커밋 (경로 지정으로 모듈별 분리) ----
 :do_commit
 echo.
 echo [5/6] 커밋 ...
 if "%CURVE_CHANGED%"=="0" goto commit_onoff
-git add data/credit-spread.js data/curve-rv-backtest.js
-if errorlevel 1 goto git_fail
-git commit -m "data: 커브 RV 데이터 !CURVE_DATE! 갱신"
+git commit -m "data: 커브 RV 데이터 !CURVE_DATE! 갱신" -- data/credit-spread.js data/curve-rv-backtest.js
 if errorlevel 1 goto git_fail
 :commit_onoff
 if "%ONOFF_CHANGED%"=="0" goto push_step
-git add data/onoff-ktb3y.js
+git commit -m "data: on/off 스프레드 !ONOFF_DATE! 갱신" -- data/onoff-ktb3y.js
 if errorlevel 1 goto git_fail
-git commit -m "data: on/off 스프레드 !ONOFF_DATE! 갱신"
-if errorlevel 1 goto git_fail
+goto push_step
 
-REM ---- [6/6] 동기화 + 푸시 ----
-:push_step
+REM ---- 데이터 갱신분 없음: 미푸시 커밋만 확인 ----
+:no_data_change
 echo.
-echo [6/6] 원격 동기화 + 푸시 ...
+echo 데이터 갱신분 없음 - 새로 커밋할 내용이 없습니다.
+goto push_step
+
+REM ---- [6/6] 동기화 + 푸시 (미푸시 로컬 커밋 있으면 무조건 수행) ----
+:push_step
+set "AHEAD=0"
+for /f "usebackq delims=" %%A in (`git rev-list --count origin/main..HEAD`) do set "AHEAD=%%A"
+if not "%AHEAD%"=="0" goto do_push
+echo.
+echo [6/6] 푸시할 커밋 없음 - 로컬과 원격이 일치합니다. 종료.
+goto end_ok
+
+:do_push
+echo.
+echo [6/6] 원격 동기화 + 푸시 (미푸시 커밋 %AHEAD%건) ...
 git pull --rebase --autostash origin main
 if errorlevel 1 goto rebase_fail
 git push origin main
@@ -167,28 +178,16 @@ echo.
 echo ============================================================
 if "%CURVE_CHANGED%"=="1" echo  [완료] 커브 RV !CURVE_DATE! 배포됨
 if "%ONOFF_CHANGED%"=="1" echo  [완료] on/off !ONOFF_DATE! 배포됨
+if "%CURVE_CHANGED%"=="0" if "%ONOFF_CHANGED%"=="0" echo  [완료] 기존 미푸시 커밋 %AHEAD%건 배포됨
 echo  브라우저에서 해당 페이지 확인 권장.
 echo ============================================================
 
-REM 줄바꿈 변환 잔상 안내 (내용 diff가 아닌 경우가 대부분)
 git status --porcelain | findstr . >nul
 if not errorlevel 1 (
     echo.
     echo   ^(참고^) 워킹트리에 잔여 변경 표시가 있습니다.
-    echo   줄바꿈 변환 잔상일 가능성이 높습니다. 필요 시 git status로 확인하세요.
+    echo   대부분 줄바꿈 잔상이지만, 다른 모듈의 실제 변경일 수도 있으니 git status 확인.
 )
-goto end_ok
-
-REM ---- 변경 없음 ----
-:nothing
-echo.
-echo 갱신분 없음 - 데이터가 이미 최신입니다. 커밋하지 않고 종료합니다.
-if "%ATTR_NEW%"=="0" goto end_ok
-echo .gitattributes 커밋만 푸시합니다 ...
-git pull --rebase --autostash origin main
-if errorlevel 1 goto rebase_fail
-git push origin main
-if errorlevel 1 goto push_fail
 goto end_ok
 
 REM ---- 실패 처리 ----
