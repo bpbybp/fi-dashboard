@@ -124,6 +124,14 @@
   .sec-head .sh-meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
   .sec-head::after { content: ''; flex: 1; height: 1px; background: var(--border-2); }
 
+  /* 중앙값 강조 (RV2-b) — bold + 부호색. 색은 부호 방향 표시일 뿐 판단 아님(측정만 한다).
+     국내 시세 관례를 따라 + = 빨강(--red 재사용), − = 파랑. */
+  .mv { font-weight: 700; }
+  .mv.pos { color: var(--red); }
+  .mv.neg { color: var(--sign-neg); }
+  :root { --sign-neg: #2b6cb0; }
+  [data-cp-theme='dark'] { --sign-neg: #58a6ff; }
+
   .side-offer { color: var(--red); font-weight: 700; }
   .side-bid { color: var(--ok); font-weight: 700; }
   .badge { font-size: 10px; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--muted); }

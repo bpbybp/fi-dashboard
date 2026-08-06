@@ -327,10 +327,20 @@ function renderRanking(quotes) {
     byLeaf.get(key).push(r);
   }
 
+  // RV2-b: 중앙값 강조 — bold + 부호색(+빨강/−파랑, 국내 시세 관례).
+  //   색은 부호 방향 표시일 뿐 좋다/나쁘다 판단이 아니다(측정만 한다).
+  const medianVal = (v) => {
+    const cls = v > 0 ? ' pos' : v < 0 ? ' neg' : '';
+    return `<b class="mv${cls}">${signed(v)}bp</b>`;
+  };
+
   const head = `<div class="sec-title">버킷별 랭킹
     <span class="cap">조정오프셋 = 오프셋 − 버킷 중앙값 · 내림차순(민평 대비 높은 수익률이 위)</span></div>
+    <div class="footnote" style="margin-bottom:4px">오프셋 = 호가 수익률 − 민평(bp, +는 민평보다 높은 금리 = 싸게 나온 물건) ·
+      조정 = 오프셋 − 버킷 중앙값(무리의 공통 수준을 뺀 뒤 무리 안에서의 상대 순위) ·
+      산출근거 = 오프셋 산출 방식(표 머리글에 마우스를 올리면 상세)</div>
     <div class="footnote" style="margin-bottom:10px">세션 전체 n=<b>${session.n}</b> ·
-      중앙값 <b>${signed(session.median)}</b>bp · MAD <b>${fmt(session.mad)}</b> ·
+      중앙값 ${medianVal(session.median)} · MAD <b>${fmt(session.mad)}</b> ·
       표본 가드 n&lt;${RV2_MIN_BUCKET_SAMPLE} → 섹터 롤업 · 통계 격자 ${RV2_STAT_TENOR_KEYS.join("/")} · 이상치 |Δ|&gt;${RV2_MAD_K}×MAD</div>`;
 
   // v1.3: 섹터 → 버킷 2단 구조. 이전엔 셀 버킷을 크기순으로 평면 나열해 섹터가 뒤섞였다.
@@ -385,7 +395,7 @@ function renderRanking(quotes) {
           <span class="b-dot"></span>
           <span class="b-name">${esc(cellKey)}</span>
           <span class="b-meta${usedCell ? '' : ' b-warn'}">${nText}</span>
-          <span class="b-meta">중앙값 ${signed(b.median)}bp · MAD ${fmt(b.mad)}</span>
+          <span class="b-meta">중앙값 ${medianVal(b.median)} · MAD ${fmt(b.mad)}</span>
           ${rollup}
           <span class="b-meta${b.missing ? ' b-warn' : ''}">오프셋 미상 ${b.missing}</span>
           <span class="b-meta">등급 ${esc(rbText)}</span>
@@ -450,8 +460,8 @@ function rankTable(list, tenorLabel) {
   }).join('');
   return `${groupHead}<table class="q"><thead><tr>
     <th>방향</th><th>발행사</th><th>종목</th><th>만기</th><th>구간</th><th>등급</th>
-    <th class="num">민평%</th><th class="num">오프셋</th><th class="num">조정</th>
-    <th>산출근거</th><th>수량</th><th>브로커</th>
+    <th class="num">민평%</th><th class="num" title="호가 수익률 − 민평 수익률 (bp). +는 민평보다 높은 금리 = 싸게 나온 물건, −는 민평보다 낮은 금리 = 비싸게 나온 물건">오프셋</th><th class="num" title="오프셋 − 버킷 중앙값. 버킷(섹터×만기 무리)의 공통 수준을 뺀 값 — 같은 무리 안에서 상대적으로 싼 순서. 정렬 기준">조정</th>
+    <th title="오프셋 산출 방식 — explicit: 호가 수익률과 민평이 모두 명시됨 / under·over: 언더N·오버N 표기 / bp: ±Nbp 표기 / flat: 민평팔자(=0)">산출근거</th><th>수량</th><th>브로커</th>
   </tr></thead><tbody>${trs}</tbody></table>`;
 }
 
