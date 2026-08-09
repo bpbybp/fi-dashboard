@@ -87,7 +87,10 @@ export function decompose(yOn, yOff1, yOff2) {
 // bonds 는 파일 순서(신지표 → 과거) 그대로. 세대 i 는 [지표 bonds[i], 구지표 bonds[i+1],
 // 구구지표 bonds[i+2]]. 구구지표까지 존재하는 세대만 생성(마지막 2종목은 밴드 재료로만 사용).
 // 각 세대 계열은 지표물이 관측된 날짜 중 구·구구지표도 모두 존재하는 날만 포함(day0 = 첫 관측).
-// 반환: [{ tag, vs, slopeVs, start, maturity, series:[['YYYY-MM-DD', raw_bp, slope_bp, fly_bp], …] }]
+// 반환: [{ tag, vs, slopeVs, start, maturity, vsMaturity, slopeVsMaturity,
+//          series:[['YYYY-MM-DD', raw_bp, slope_bp, fly_bp], …] }]
+// vsMaturity/slopeVsMaturity 는 validateStructure 의 만기 단조성 가드용 메타다. serialize 는
+// 이 둘을 직렬화하지 않는다 — 산출물 바이트를 바꾸지 않기 위함(가드 추가는 데이터 변경이 아님).
 export function deriveGenerations(bonds) {
   const maps = bonds.map(b => new Map(b.series));
   const gens = [];
@@ -106,6 +109,8 @@ export function deriveGenerations(bonds) {
       slopeVs: bonds[i + 2].tag,
       start: series[0][0],
       maturity: bonds[i].maturity,
+      vsMaturity: bonds[i + 1].maturity,
+      slopeVsMaturity: bonds[i + 2].maturity,
       series,
     });
   }
@@ -159,6 +164,11 @@ export function validateStructure(dataset) {
   if (!Array.isArray(generations) || generations.length < MIN_GENS)
     fail(`세대 수 ${generations ? generations.length : 0} < ${MIN_GENS}`);
 
+  // 만기 조회표 — deriveGenerations 가 vsMaturity/slopeVsMaturity 를 붙이지만, 직렬화되지 않으므로
+  // 기존 산출물(data/onoff-ktb3y.js)에는 없다. 같은 데이터셋 안의 다른 세대 tag 로 보완한다.
+  const matByTag = new Map(generations.map(g => [g.tag, g.maturity]));
+  const matOf = (explicit, tag) => explicit || matByTag.get(tag) || null;
+
   for (const g of generations) {
     const where = `세대 ${g.tag}`;
     if (!TAG_RE.test(g.tag) || !TAG_RE.test(g.vs) || !TAG_RE.test(g.slopeVs))
@@ -166,6 +176,20 @@ export function validateStructure(dataset) {
     if (!MAT_RE.test(g.maturity)) fail(`${where}: maturity 형식 오류 '${g.maturity}'`);
     if (!Array.isArray(g.series) || g.series.length === 0) fail(`${where}: series 비어 있음`);
     if (g.start !== g.series[0][0]) fail(`${where}: start(${g.start}) ≠ 첫 관측(${g.series[0][0]})`);
+
+    // 만기 단조성: 지표 > 구지표 > 구구지표. 'YYYY-MM' 은 사전식 비교가 시간순과 일치.
+    // deriveGenerations 는 xlsx 열 순서만 보고 세대를 짜므로, 열 순서가 만기 오름차순이거나
+    // 계열(2Y/3Y)이 섞이면 만기가 역전된 세대가 조용히 만들어진다 — 그 경로를 여기서 끊는다.
+    // 만기를 모르는 종목(조회표에도 없는 vs/slopeVs)은 해당 비교만 건너뛴다.
+    const vsMat = matOf(g.vsMaturity, g.vs);
+    const svMat = matOf(g.slopeVsMaturity, g.slopeVs);
+    if (vsMat != null && !MAT_RE.test(vsMat)) fail(`${where}: vsMaturity 형식 오류 '${vsMat}'`);
+    if (svMat != null && !MAT_RE.test(svMat)) fail(`${where}: slopeVsMaturity 형식 오류 '${svMat}'`);
+    const ladder = `${g.tag}(${g.maturity}) > ${g.vs}(${vsMat ?? '미상'}) > ${g.slopeVs}(${svMat ?? '미상'})`;
+    if (vsMat != null && !(g.maturity > vsMat))
+      fail(`${where}: 만기 역전 — 지표가 구지표보다 길지 않음 [${ladder}]`);
+    if (vsMat != null && svMat != null && !(vsMat > svMat))
+      fail(`${where}: 만기 역전 — 구지표가 구구지표보다 길지 않음 [${ladder}]`);
 
     let prev = '';
     for (let i = 0; i < g.series.length; i++) {

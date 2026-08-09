@@ -14,3 +14,6 @@ curve-rv-command.md
 
 # 에너지 나우캐스트 백테스트 로컬 캐시(원시 FRED, 재생성 가능)
 scripts/.nowcast-cache.json
+
+# on/off 산출물 자동 백업(convert-onoff.mjs 가 덮어쓰기 직전 남김 — 로컬 복구용)
+data/_backup/
