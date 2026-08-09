@@ -139,16 +139,15 @@
   .cmt-text { font-size: 13px; color: var(--text); white-space: pre-wrap; }
 
   /* OO-9 지표 해설 ("이 화면 읽는 법") */
-  /* 갱신 중단 안내 — 레거시 세대 스키마 화면 동결(2026-08). 기능은 그대로 두고 표기만 얹는다. */
-  .frozen-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
-    background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--forecast);
+  /* 병행 안내 — 세대 스키마와 종목 스키마는 둘 다 갱신된다. 어느 쪽을 보고 있는지만 알려준다. */
+  .sibling-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent-ink);
     border-radius: 7px; padding: 11px 14px; margin: 0 0 18px; font-size: 13px; }
-  .frozen-banner .fb-mark { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--forecast);
-    border: 1px solid var(--v-liq-bd); background: var(--v-liq-bg); border-radius: 4px; padding: 2px 7px; }
-  .frozen-banner .fb-date { font-family: var(--mono); color: var(--text); font-weight: 600; }
-  .frozen-banner a { color: var(--accent-ink); font-weight: 600; text-decoration: none;
+  .sibling-banner .sb-mark { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent-ink);
+    border: 1px solid var(--v-mix-bd); background: var(--v-mix-bg); border-radius: 4px; padding: 2px 7px; }
+  .sibling-banner a { color: var(--accent-ink); font-weight: 600; text-decoration: none;
     border-bottom: 1px solid var(--v-mix-bd); }
-  .frozen-banner a:hover { border-bottom-color: var(--accent-ink); }
+  .sibling-banner a:hover { border-bottom-color: var(--accent-ink); }
 
   .oo-explainer { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; margin: 0 0 20px; }
   .oo-explainer > summary { cursor: pointer; padding: 12px 16px; font-size: 13px; font-weight: 600; color: var(--accent-ink); list-style: none; user-select: none; }
@@ -180,12 +179,12 @@
   <h1>On/Off-the-run 스프레드</h1>
   <p class="tagline">지표물 fly = [지표−구지표] − [구지표−구구지표]. 세대별 이벤트타임 비교로 리치/저평가를 문맥화 — 원인 판단은 사람 몫.</p>
 
-  <!-- 갱신 중단 안내 — 세대(3종목 조합) 스키마는 2026-08 종목 단위 스키마로 대체됐다.
-       화면·데이터·계산은 그대로 남겨 과거 조회는 계속 가능하게 두고, 표기만 얹는다. -->
-  <div class="frozen-banner">
-    <span class="fb-mark">갱신 중단</span>
-    <span>이 화면은 <span class="fb-date">2026-07-31</span> 데이터에서 갱신이 중단되었습니다.
-      현재 측정은 <a href="onoff-curve.html">On/Off 커브 단면</a>을 사용하십시오.</span>
+  <!-- 병행 안내 — 세대 스키마(이 화면)와 종목 스키마(커브 단면)는 둘 다 갱신된다.
+       두 화면은 같은 원본에서 서로 다른 각도로 재는 것이라 대체 관계가 아니다. -->
+  <div class="sibling-banner">
+    <span class="sb-mark">세대 스키마</span>
+    <span>이 화면은 세대(3종목 조합) 스키마 기준입니다.
+      종목 단위 커브 대비 측정은 <a href="onoff-curve.html">On/Off 커브 단면</a>을 함께 보십시오.</span>
   </div>
 
   <!-- OO-9 이 화면 읽는 법 (접이식 · 펼침 상태 localStorage 기억) -->

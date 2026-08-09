@@ -57,6 +57,16 @@
   .date-input { background: var(--panel); border: 1px solid var(--border-2); color: var(--text); border-radius: 7px; padding: 6px 10px; font-family: var(--mono); font-size: 12px; }
   .date-input:focus { outline: none; border-color: var(--accent-ink); }
 
+  /* 병행 안내 — 세대 스키마 화면(onoff-spread)과 대칭. 대체가 아니라 병행 관계임을 양쪽에 표기. */
+  .sibling-banner { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px;
+    background: var(--panel-2); border: 1px solid var(--border); border-left: 3px solid var(--accent-ink);
+    border-radius: 7px; padding: 11px 14px; margin: 0 0 18px; font-size: 13px; }
+  .sibling-banner .sb-mark { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; color: var(--accent-ink);
+    border: 1px solid var(--t3y-bd); background: var(--t3y-bg); border-radius: 4px; padding: 2px 7px; }
+  .sibling-banner a { color: var(--accent-ink); font-weight: 600; text-decoration: none;
+    border-bottom: 1px solid var(--t3y-bd); }
+  .sibling-banner a:hover { border-bottom-color: var(--accent-ink); }
+
   .callout { border: 1px solid var(--border-2); border-left-width: 3px; border-radius: 7px; padding: 9px 12px; font-size: 12px; margin-bottom: 12px; background: var(--panel-2); }
   .callout.snap { border-left-color: var(--accent-ink); }
   .callout.warn { border-left-color: var(--warn); }
@@ -116,6 +126,13 @@
   </div>
   <h1>On/Off 커브 단면</h1>
   <p class="tagline">하루치 국고 2·3년 종목을 잔존만기 축에 늘어놓고, 지표물이 경과물 커브에서 얼마나 벗어나 있는지 bp로 잰다. 판정·밴드 없이 측정값만 표시한다.</p>
+
+  <!-- 병행 안내 — onoff-spread.html 과 대칭. 두 화면은 같은 원본을 서로 다른 각도로 잰다. -->
+  <div class="sibling-banner">
+    <span class="sb-mark">종목 스키마</span>
+    <span>이 화면은 종목 단위 커브 대비 측정입니다.
+      세대 event-time 비교는 <a href="onoff-spread.html">On/Off 스프레드</a>를 참조하십시오.</span>
+  </div>
 
   <div class="series-bar" id="oc-meta"><span class="sname">데이터 로드 중…</span></div>
 
