@@ -241,6 +241,7 @@ export function validateBonds(dataset, onWarn = defaultWarn) {
 
   const byMaturity = new Map();
   let totalObs = 0;
+  let prevMaturity = '';
 
   for (const b of bonds) {
     const where = `종목 ${b.tag}`;
@@ -274,6 +275,14 @@ export function validateBonds(dataset, onWarn = defaultWarn) {
     // 5) 캐리포워드 잔존 — series 최종일이 만기월을 넘으면 안 된다.
     if (b.last.slice(0, 7) > b.maturity)
       fail(`${where}: 만기 이후 관측 잔존 — 최종 ${b.last} > 만기월 ${b.maturity}`);
+
+    // 9) 만기 정렬 — bonds 배열은 만기 비내림차순이어야 한다.
+    // 세대 스키마의 '세대 내 만기 단조성'에 대응하는 종목 스키마 쪽 불변식이다. 세대 조합이 없으니
+    // 역전이 곧바로 잘못된 스프레드를 만들지는 않지만, 순서가 뒤집혔다는 건 xlsx 열 구성이나
+    // 정렬 단계가 깨졌다는 신호다. 같은 만기(2Y·3Y 동월 만기)는 정상이라 8)에서 경고로만 잡는다.
+    if (prevMaturity && b.maturity < prevMaturity)
+      fail(`${where}: 만기 정렬 역전 — 직전 종목 만기 ${prevMaturity} > ${b.maturity}. bonds 배열은 만기 오름차순이어야 함`);
+    prevMaturity = b.maturity;
 
     if (!byMaturity.has(b.maturity)) byMaturity.set(b.maturity, []);
     byMaturity.get(b.maturity).push(b);
