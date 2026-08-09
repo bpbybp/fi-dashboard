@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { id: 'us-credit-spread', title: 'US Credit Spread', file: 'us-credit-spread.html', desc: '미국 IG·HY·등급별 OAS + 파생 스프레드(BBB−A·A−AA·장기−전체) z250 — 하이퍼스케일러 발행압력 측정 (FRED BAML)' },
   { id: 'rv-screener', title: 'RV 스크리너', file: 'rv-screener.html', desc: 'K본드 호가 vs 민평 그리드 상대가치 — 발행사 커브 보간·횡단면 조정괴리로 수급 이상치 판별 (클라이언트 온리)' },
   { id: 'onoff', title: 'On/Off 스프레드', file: 'onoff-spread.html', desc: '국고 3년 지표물 커브조정 상대가치 — 세대 이벤트타임 비교' },
+  { id: 'onoff-curve', title: 'On/Off 커브 단면', file: 'onoff-curve.html', desc: '국고 2·3년 종목 단위 잔존만기 커브 — 지표물이 경과물 커브에서 벗어난 폭(bp) 측정 (판정·밴드 없음)' },
   { id: 'carry', title: '캐리 손익분기', file: 'carry-breakeven.html', desc: '레버리지 캐리 vs 금리·스프레드 확대 — 손익분기·시나리오 기대값 (입력형)' },
   { id: 'rg-regime', title: '레짐 판단', file: 'rg-regime.html', desc: '전향적 레짐 히트맵 — 금리·스프레드 방향 확률 → 9셀 결합확률 + 플레이북 (입력형)' },
 ];

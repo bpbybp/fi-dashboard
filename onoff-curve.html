@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>On/Off 커브 단면 — 국고 2·3년 종목 단위 잔차 | FI Dashboard</title>
+<!-- 테마 선적용(FOUC 방지) — body 렌더 전에 html[data-oo-theme] 세팅. 기본 dark. onoff-spread 와 키 공유. -->
+<script>try{document.documentElement.dataset.ooTheme=localStorage.getItem('oo-theme')==='light'?'light':'dark';}catch(e){document.documentElement.dataset.ooTheme='dark';}</script>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --accent-ink: var(--accent);
+    --accent-contrast: #08111f;
+    /* 계열 구분색 — 판정이 아니라 2Y/3Y 라벨 용도 */
+    --t2y: #bc8cff; --t2y-bd: #bc8cff55; --t2y-bg: #bc8cff11;
+    --t3y: #58a6ff; --t3y-bd: #58a6ff55; --t3y-bg: #58a6ff11;
+    --warn: #f0883e;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  /* ── 라이트(화이트) 모드 — KB CI 팔레트 (onoff-spread 와 동일 규약) ── */
+  [data-oo-theme='light'] {
+    --bg: #faf9f6; --panel: #ffffff; --panel-2: #f4f1ea;
+    --border: #e7e2d8; --border-2: #d6cfc1;
+    --text: #26231d; --muted: #837b6d;
+    --accent: #ffbc00; --accent-ink: #8a6b00; --accent-contrast: #26231d;
+    --t2y: #7c5cbf; --t2y-bd: #7c5cbf55; --t2y-bg: #7c5cbf14;
+    --t3y: #2f6fbf; --t3y-bd: #2f6fbf55; --t3y-bg: #2f6fbf14;
+    --warn: #d98e04;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 28px 22px 80px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: var(--accent-contrast); }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  .eyebrow .sibling { margin-left: auto; font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 9px; }
+  .eyebrow .sibling:hover { color: var(--text); border-color: var(--accent-ink); }
+  .eyebrow .theme-toggle { font-size: 12px; line-height: 1.5; color: var(--muted); background: transparent; border: 1px solid var(--border-2); border-radius: 6px; padding: 4px 9px; cursor: pointer; font-family: var(--sans); }
+  .eyebrow .theme-toggle:hover { color: var(--text); border-color: var(--accent-ink); }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 3px; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+
+  .series-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 9px; margin-bottom: 16px; font-size: 12px; }
+  .series-bar .sname { font-size: 14px; font-weight: 600; }
+  .series-bar .meta { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 14px; align-items: center; }
+  .ctrl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .btn { background: var(--panel-2); border: 1px solid var(--border-2); color: var(--text); font-size: 12px; padding: 6px 11px; border-radius: 7px; cursor: pointer; font-family: var(--mono); }
+  .btn:hover:not(:disabled) { border-color: var(--accent-ink); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .date-input { background: var(--panel); border: 1px solid var(--border-2); color: var(--text); border-radius: 7px; padding: 6px 10px; font-family: var(--mono); font-size: 12px; }
+  .date-input:focus { outline: none; border-color: var(--accent-ink); }
+
+  .callout { border: 1px solid var(--border-2); border-left-width: 3px; border-radius: 7px; padding: 9px 12px; font-size: 12px; margin-bottom: 12px; background: var(--panel-2); }
+  .callout.snap { border-left-color: var(--accent-ink); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout .k { font-family: var(--mono); color: var(--text); }
+  .callout.hidden { display: none; }
+
+  .section-title { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin: 22px 0 10px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 4px 2px; overflow-x: auto; }
+  .card.chart { padding: 8px 10px; overflow: visible; }
+  .chart-box { width: 100%; height: 580px; }
+  .chart-box.ts { height: 340px; }
+
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden; }
+  .seg button { background: transparent; border: none; color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: var(--accent-contrast); font-weight: 600; }
+  .seg button:hover:not(.active) { background: var(--panel-2); color: var(--text); }
+  .oc-select { background: var(--panel); border: 1px solid var(--border-2); color: var(--text); border-radius: 7px; padding: 6px 10px; font-family: var(--mono); font-size: 12px; min-width: 260px; }
+  .oc-select:focus { outline: none; border-color: var(--accent-ink); }
+
+  table.slopes { border-collapse: collapse; font-size: 12.5px; font-family: var(--mono); }
+  table.slopes th, table.slopes td { padding: 8px 18px; text-align: center; border-bottom: 1px solid var(--border); }
+  table.slopes th { font-size: 11px; font-weight: 600; color: var(--muted); font-family: var(--sans); letter-spacing: 0.03em; border-bottom: 1px solid var(--border-2); }
+  table.slopes tbody tr:last-child td { border-bottom: none; }
+  table.slopes td.na { color: var(--muted); }
+  .status { font-size: 11px; font-family: var(--mono); color: var(--muted); min-height: 15px; margin-left: 4px; }
+
+  table.grid { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.grid th, table.grid td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  table.grid th { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; border-bottom: 1px solid var(--border-2); }
+  table.grid th:first-child, table.grid td:first-child { text-align: left; }
+  table.grid td.num { font-family: var(--mono); }
+  table.grid tbody tr:last-child td { border-bottom: none; }
+  table.grid th[title] { cursor: help; text-decoration: underline dotted var(--border-2); text-underline-offset: 3px; }
+
+  .pill { font-size: 10px; font-family: var(--mono); padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-2); color: var(--muted); }
+  .pill.t2y { color: var(--t2y); border-color: var(--t2y-bd); background: var(--t2y-bg); }
+  .pill.t3y { color: var(--t3y); border-color: var(--t3y-bd); background: var(--t3y-bg); }
+  tr.r-onrun { background: var(--panel-2); }
+  tr.r-onrun td:first-child { font-weight: 700; }
+  tr.r-out { opacity: 0.5; }
+  .na { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .sub { display: block; color: var(--muted); font-family: var(--mono); font-size: 10.5px; margin-top: 2px; }
+
+  .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+  .note b { color: var(--text); }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap" id="oc-app">
+  <div class="eyebrow">
+    <span class="step">ON/OFF 커브</span>
+    <span class="ctx">국고 2·3년 종목 단위 · 잔존만기 커브 단면</span>
+    <a class="sibling" href="onoff-spread.html" title="세대(3종목 조합) 스키마 화면">세대 스키마 화면 →</a>
+    <button class="theme-toggle" id="oc-theme-toggle" type="button" title="라이트/다크 모드 전환 (보고서·캡처용)">🌙 다크</button>
+  </div>
+  <h1>On/Off 커브 단면</h1>
+  <p class="tagline">하루치 국고 2·3년 종목을 잔존만기 축에 늘어놓고, 지표물이 경과물 커브에서 얼마나 벗어나 있는지 bp로 잰다. 판정·밴드 없이 측정값만 표시한다.</p>
+
+  <div class="series-bar" id="oc-meta"><span class="sname">데이터 로드 중…</span></div>
+
+  <div class="controls">
+    <span class="ctrl-label">일자</span>
+    <button class="btn" id="oc-prev" type="button" title="이전 영업일">◀</button>
+    <input class="date-input" id="oc-date" type="date" />
+    <button class="btn" id="oc-next" type="button" title="다음 영업일">▶</button>
+    <button class="btn" id="oc-latest" type="button" title="데이터 최신일로">최신일</button>
+  </div>
+
+  <div class="callout snap hidden" id="oc-snap"></div>
+  <div class="callout warn hidden" id="oc-warn"></div>
+
+  <div class="section-title">커브 단면 <span style="text-transform:none;font-weight:400">— x 잔존만기(개월) · y 상대금리(bp)</span></div>
+  <div class="card chart"><div class="chart-box" id="oc-chart"></div></div>
+  <p class="note" id="oc-chart-note"></p>
+
+  <div class="section-title">구간 기울기 <span style="text-transform:none;font-weight:400">— 인접 종목 간 기울기의 구간 평균</span></div>
+  <div class="card" id="oc-slopes"><div class="empty">…</div></div>
+
+  <div class="section-title">잔차 표 <span style="text-transform:none;font-weight:400">— 만기 오름차순</span></div>
+  <div class="card" id="oc-table-card"><div class="empty">…</div></div>
+
+  <p class="note" id="oc-legend"></p>
+
+  <div class="section-title">잔차 시계열</div>
+  <div class="controls">
+    <span class="ctrl-label">종목</span>
+    <select class="oc-select" id="oc-ts-tag"></select>
+    <span class="ctrl-label">기간</span>
+    <span class="seg" id="oc-ts-range">
+      <button type="button" data-range="250" class="active">최근 250영업일</button>
+      <button type="button" data-range="all">전체</button>
+    </span>
+    <span class="status" id="oc-ts-status"></span>
+  </div>
+  <div class="card chart"><div class="chart-box ts" id="oc-ts-chart"></div></div>
+  <p class="note" id="oc-ts-note"></p>
+</div>
+
+<!-- 공통 내비게이션 -->
+<script type="module" src="js/nav.js"></script>
+<!-- vendor -->
+<script src="vendor/plotly.min.js"></script>
+<!-- data (window.ONOFF_BONDS) -->
+<script src="data/onoff-bonds.js"></script>
+<!-- app (ES module) -->
+<script type="module">
+  import { initOnoffCurve } from './js/onoff-curve-ui.js';
+  initOnoffCurve();
+</script>
+</body>
+</html>
