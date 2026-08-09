@@ -144,7 +144,23 @@ export function parseMinpyeong(content) {
   return { yield: yieldVal, kkeutjeon };
 }
 
-/** 스프레드 → { type, value } | null */
+/**
+ * 스프레드 → { type, value } | null
+ *
+ * ── B-6 수정 (2026-08-05) ────────────────────────────────────────────────
+ * 이전에는 마지막에 `if (/팔자|사자/) return {type:'flat', value:0}` 폴백이 있었다.
+ * 그 결과 **레벨을 전혀 제시하지 않은 호가**("27.5.4 지에스리테일34-2 (민 3.802) 팔자")
+ * 까지 "민평에 판다(0bp)"로 확정됐고, rv-engine.quoteYield 가 이를 `y = 민평` 으로
+ * 채택해 원괴리 0 으로 횡단면에 유입시켰다. 2026-08-05 샘플 실측으로 이것이 전체 호가의
+ * 54.8% (1,959/3,579)였음이 확인됐다 — 버킷 중앙값(시장 베타 근사)이 0쪽으로 끌린다.
+ *
+ * **폴백을 없애는 것이 아니라, flat 을 명시 표현일 때만 확정한다.** 레벨이 없으면
+ * 0bp 가 아니라 **모른다(null)** 이다. RV-2 가 이미 쓰는 규약(RV2_FLAT_RE)의 역이식이며,
+ * 명시 flat 정규식도 RV-2 와 동일 범위로 맞춘다(`민평 팔자` 형태 포함).
+ * 참조: rv2-phase0-report.md §7 B-6, js/rv2-parser.js RV2_FLAT_RE.
+ */
+export const EXPLICIT_FLAT_RE = /민평?\s*(?:팔자|사자)|플랫|\bflat\b|\.\.(?:팔자|사자)/i;
+
 export function parseSpread(content) {
   if (!content || typeof content !== 'string') return null;
   const wonMatch = content.match(/([+-]?\d+\.?\d*)원/);
@@ -153,11 +169,10 @@ export function parseSpread(content) {
   if (bpMatch) return { type: 'bp', value: parseFloat(bpMatch[1]) };
   const overMatch = content.match(/오[버바]\s*(\d+\.?\d*)/);
   if (overMatch) return { type: 'bp', value: parseFloat(overMatch[1]) };
-  if (/민\s*(?:팔자|사자)|플랫|flat(?:\s|$)|\.\.(?:팔자|사자)/i.test(content)) return { type: 'flat', value: 0 };
+  if (EXPLICIT_FLAT_RE.test(content)) return { type: 'flat', value: 0 };
   const absMatch = content.match(/(\d+\.\d+)%?\s*(?:팔자|사자)|(?:팔자|사자)\s*(\d+\.\d+)%/);
   if (absMatch) return { type: 'absolute', value: parseFloat(absMatch[1] || absMatch[2]) };
-  if (/팔자|사자/.test(content)) return { type: 'flat', value: 0 };
-  return null;
+  return null; // 레벨 없음 = 미상. 0bp 로 단정하지 않는다(B-6).
 }
 
 /** 신용등급 → string | null */

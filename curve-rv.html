@@ -68,6 +68,17 @@
 
   .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; }
   .note { font-size: 11px; color: var(--muted); margin-top: 8px; line-height: 1.7; }
+
+  /* CV-3 스프레드 변화 매트릭스 — 색은 Δ 부호·크기 표시일 뿐 판단 아님(측정만 한다) */
+  :root { --cv3-pos: #f85149; --cv3-neg: #58a6ff; }
+  .cv3-asof { font-size: 11px; color: var(--muted); font-family: var(--mono); margin: 2px 0 8px; }
+  .cv3-wrap { overflow-x: auto; }
+  .cv3-table { border-collapse: collapse; width: 100%; font-size: 11.5px; }
+  .cv3-table th, .cv3-table td { padding: 4px 7px; text-align: right; border-bottom: 1px solid var(--border); }
+  .cv3-table thead th { color: var(--muted); font-weight: 600; font-size: 11px; }
+  .cv3-table tbody th { text-align: left; font-weight: 600; white-space: nowrap; }
+  .cv3-table td { font-family: var(--mono); }
+  .cv3-table td.nil { color: var(--muted); }
   .legend-inline { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: var(--muted); margin-top: 8px; }
   .swatch { display: inline-block; width: 22px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
 
@@ -147,7 +158,23 @@
     </div>
   </div>
   <div class="card"><div class="chart-box" id="cv-chart" style="height:380px"></div>
-    <div class="note">현재=실선 · 과거=점선. 절대금리 = 국고(동일 노드) + 섹터 스프레드. 노드 결측 시 해당점 제외(보간 없음). 범례 클릭으로 섹터 on/off. 판단·시그널 없음.</div>
+    <div class="note">현재=실선 · 과거=점선. 절대금리 = 국고(동일 노드) + 섹터 스프레드. 노드 결측 시 해당점 제외(보간 없음). 범례 클릭으로 섹터 on/off. 판단·시그널 없음.<br>확대: 드래그=구간 확대 · 휠=줌 · 축 눈금 드래그=이동 · 더블클릭=원래대로. 확대 상태는 토글을 바꿔도 유지됨(스프레드↔금리 전환 시 세로축만 리셋).</div>
+  </div>
+
+  <!-- 스프레드 변화 매트릭스 (CV-3) — 측정만: Δ스프레드(bp). 가로=섹터 내 만기 비교 / 세로=만기 내 섹터 비교 -->
+  <div class="section-title">스프레드 변화 매트릭스</div>
+  <div class="controls">
+    <div class="ctrl-group" title="Δ = 현재 − 선택 호라이즌(영업일) 전 스프레드">
+      <span class="ctrl-label">호라이즌</span>
+      <div class="seg" id="cv3-horizon">
+        <button data-hz="1w">1주</button>
+        <button data-hz="1m" class="active">1개월</button>
+        <button data-hz="3m">3개월</button>
+      </div>
+    </div>
+  </div>
+  <div class="card"><div id="cv3-panel"></div>
+    <div class="note">셀 = Δ스프레드(bp, 현재 − 과거). <b>가로</b>로 읽으면 같은 섹터 내 만기 간 비교, <b>세로</b>로 읽으면 같은 만기 내 섹터 간 비교. +확대=적색 · −축소=청색, 농도는 표 전체 최대 |Δ| 대비 상대 크기. 국고채권은 레벨 시리즈라 제외. 판단·시그널 없음.</div>
   </div>
 
   <!-- 모드 + 호라이즌 토글 -->
@@ -239,8 +266,10 @@
 <script type="module">
   import { initCurveRV } from './js/rv-ui.js';
   import { initSectorCurves } from './js/rv-curves.js';
+  import { initChangeMatrix } from './js/cv-matrix.js';
   initCurveRV();
   initSectorCurves();
+  initChangeMatrix();
 </script>
 </body>
 </html>

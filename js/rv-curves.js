@@ -11,7 +11,13 @@ const COLORS = {
   text: '#c9d1d9', muted: '#8b949e',
 };
 const FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
-const CONFIG = { displayModeBar: false, responsive: true };
+// CV-2: 축 줌·이동 활성화. 드래그=구간 확대, 휠=줌, 축 드래그=이동, 더블클릭=원복.
+//   모드바는 hover 시에만 노출, 줌·팬·리셋만 남긴다(내보내기는 기존 PNG 프리셋이 정본).
+const CONFIG = {
+  displayModeBar: true, displaylogo: false,
+  modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d', 'toImage'],
+  scrollZoom: true, responsive: true, doubleClick: 'reset',
+};
 const LS_KEY = 'curve-rv-curves';
 
 const GHOST_OFFSET = { '1m': 21, '3m': 63 }; // 영업일(인덱스) 오프셋
@@ -117,13 +123,16 @@ function layout(mode) {
   return {
     paper_bgcolor: 'transparent', plot_bgcolor: COLORS.bg,
     font: { color: COLORS.muted, family: FONT, size: 11 },
+    // CV-2: uirevision — 고스트·범례 토글로 Plotly.react 가 다시 돌아도 줌·팬 상태를 유지한다.
+    //   y축만 mode 를 revision 으로 써서 spread(bp)↔yield(%) 전환 시 단위가 다른 y줌은 리셋한다.
+    dragmode: 'zoom', uirevision: 'cv',
     xaxis: {
-      title: { text: '만기', font: { size: 10 } }, type: 'linear',
+      title: { text: '만기', font: { size: 10 } }, type: 'linear', uirevision: 'cv',
       tickvals: [0.25, 0.5, 1, 2, 3, 5, 10], ticktext: ['3M', '6M', '1Y', '2Y', '3Y', '5Y', '10Y'],
       gridcolor: COLORS.grid, linecolor: COLORS.axis, tickfont: { size: 10 }, zeroline: false,
     },
     yaxis: {
-      title: { text: mode === 'spread' ? 'bp' : '%', font: { size: 10 } },
+      title: { text: mode === 'spread' ? 'bp' : '%', font: { size: 10 } }, uirevision: mode,
       gridcolor: COLORS.grid, linecolor: COLORS.axis, tickfont: { size: 10 }, zeroline: false,
     },
     margin: { l: 52, r: 16, t: 14, b: 40 }, hovermode: 'x unified',

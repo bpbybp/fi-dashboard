@@ -8,8 +8,8 @@
         "unit": "Dollars per Gallon",
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
-        "last_updated": "2026-07",
-        "last_weeks": 4
+        "last_updated": "2026-08",
+        "last_weeks": 1
       },
       "data": [
         {
@@ -1066,6 +1066,11 @@
           "period": "2026-07",
           "value": 3.93225,
           "weeks": 4
+        },
+        {
+          "period": "2026-08",
+          "value": 4.079,
+          "weeks": 1
         }
       ]
     },
@@ -2130,8 +2135,8 @@
         },
         {
           "period": "2026-07",
-          "value": 76.0746153846154,
-          "weeks": 13
+          "value": 79.54111111111112,
+          "weeks": 18
         }
       ]
     },

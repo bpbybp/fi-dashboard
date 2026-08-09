@@ -6,6 +6,10 @@ cors-test.html
 team-dashboard-spec.md
 curve-rv-command.md
 
+# RV-2 케이본드 원문 샘플 — 발화자 실명·전화번호 포함. 절대 커밋 금지.
+# tools/mask-kbond-sample.mjs 로 마스킹한 결과물(tests/fixtures/kbond-sample.masked.txt)만 커밋한다.
+tests/fixtures/raw-kbond/
+
 # 로컬 전용 — 절대 커밋 금지 (API 키·사내 CA 번들)
 .env
 .env.*

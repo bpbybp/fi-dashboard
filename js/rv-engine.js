@@ -50,13 +50,20 @@ export function matchGroupName(raw, groupCurves) {
 }
 
 // 호가의 유효 수익률(원괴리 계산용). 원(won) 스프레드는 듀레이션 필요 → Phase 4.
+//
+// ── B-6 수정 (2026-08-05) ──────────────────────────────────────────────────
+// 이전 마지막 분기는 `return { y: 민평, basis: '민평flat' }` 이었다. 즉 민평만 있으면
+// spread_type 이 무엇이든(폴백 flat 이든 null 이든) "민평에 판다"로 확정했다.
+// parseSpread 의 폴백 flat 제거만으로는 부족하다 — spread_type 이 null 로 바뀌어도
+// 여기서 다시 민평flat 이 되기 때문이다. **flat 은 명시 flat 일 때만 인정한다.**
 export function quoteYield(q) {
   if (q.actual_yield != null) return { y: q.actual_yield, basis: 'actual' };
   if (q.minpyeong_yield != null) {
     if (q.spread_type === 'bp') return { y: q.minpyeong_yield + (q.spread_value || 0) / 100, basis: '민평+bp' };
     if (q.spread_type === 'absolute') return { y: q.spread_value, basis: 'absolute' };
     if (q.spread_type === 'won') return { y: null, basis: '원(듀레이션 필요)' };
-    return { y: q.minpyeong_yield, basis: '민평flat' };
+    if (q.spread_type === 'flat') return { y: q.minpyeong_yield, basis: '민평flat' };
+    return { y: null, basis: '미상(레벨없음)' }; // 민평은 있으나 호가 레벨이 없다(B-6)
   }
   if (q.spread_type === 'absolute') return { y: q.spread_value, basis: 'absolute' };
   return { y: null, basis: '미상' };

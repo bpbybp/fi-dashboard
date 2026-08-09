@@ -253,6 +253,20 @@ function renderQuotes() {
   const rows = qs.map((q) => ({ q, ref: hasMP ? resolveReference(q, MP, aliases, KBOND_ABBREVIATIONS, matchIssuer, today) : null }));
   const stats = hasMP ? computeStats(rows) : null;
 
+  // ── 오프셋 미상 사유 (B-6 이후 신설) ──────────────────────────────────
+  // B-6 수정 전에는 레벨 없는 호가에 0bp 가 붙어 전부 랭킹에 올라갔다. 이제 미상으로 빠지는데,
+  // 그 규모가 크다(2026-08-05 샘플에서 전체 호가의 55%). **빼되 숨기지 않는다** —
+  // RV-2 §6.2와 같은 규약으로 사유별 카운트를 노출한다.
+  const missReason = (g) => {
+    if (g.quoteYieldBasis === '원(듀레이션 필요)') return '원단위(듀레이션 필요)';
+    if (g.quoteYieldBasis === '미상(레벨없음)') return '레벨 없음';
+    if (g.reference == null) return '기준없음(외삽/결측)';
+    return '미상';
+  };
+  const countBy = (list, fn) => list.reduce((acc, x) => { const k = fn(x); acc[k] = (acc[k] || 0) + 1; return acc; }, {});
+  const reasonLine = (obj, total) => Object.entries(obj).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `${esc(k)} <b>${v}</b>${total ? `(${Math.round((v / total) * 100)}%)` : ''}`).join(' · ');
+
   if (!qs.length) {
     res.innerHTML = SESSION.unparsed.length ? '' : '<div class="empty">아직 파싱된 호가가 없습니다. 위 입력창에 붙여넣고 [파싱]을 누르세요.</div>';
   } else if (!hasMP) {
@@ -270,7 +284,17 @@ function renderQuotes() {
         <td class="mono">${sp}</td><td class="mono">${q.maturity_date ? `${q.maturity_date}${ry != null ? ` (${ry}y)` : ''}` : '—'}</td>
         <td><span class="conf conf-${q.parse_confidence}">${q.parse_confidence}</span></td></tr>`;
     }).join('');
+    // 업로드 전에도 미상 규모는 보여준다 — 여기서도 숨기지 않는다.
+    const preMiss = qs.filter((q) => quoteYield(q).y == null || q.minpyeong_yield == null);
+    const preSummary = preMiss.length ? `<div class="footnote" style="margin:0 0 10px"><div>원괴리 산출 불가 ${preMiss.length}/${qs.length}(${Math.round((preMiss.length / qs.length) * 100)}%) — ${reasonLine(countBy(preMiss, (q) => {
+      const b = quoteYield(q).basis;
+      if (b === '원(듀레이션 필요)') return '원단위(듀레이션 필요)';
+      if (b === '미상(레벨없음)') return '레벨 없음';
+      return q.minpyeong_yield == null ? '내장민평 없음' : '미상';
+    }), preMiss.length)}</div></div>` : '';
+
     res.innerHTML = `<div class="notice" style="margin:0 0 10px">민평 미업로드 — <b>내장민평 기반 괴리는 계산되나 보간 폴백·검증 플래그는 민평 업로드 후 활성화</b>됩니다. (횡단면 버킷 조정괴리·발행사 매칭도 업로드 후)</div>
+      ${preSummary}
       <div class="sec-title">파싱된 호가 <span class="cap">최신순 · 원괴리(내장민평) = 호가수익률 − 내장민평 · 수량 컬럼 제외</span></div>
       <table class="q"><thead><tr><th>방향</th><th>발행사(raw)</th><th>종목</th><th>등급</th>
       <th class="num">내장민평%</th><th class="num">호가%</th><th class="num">원괴리bp</th><th>스프레드</th><th>잔존만기</th><th>신뢰도</th></tr></thead><tbody>${trs}</tbody></table>`;
@@ -278,6 +302,10 @@ function renderQuotes() {
     // 민평 있음 → 횡단면 판별. 괴리=호가수익률−(내장민평 ?? 보간). 버킷 중앙값 차감→조정괴리.
     const { gaps, bm, offers, bids, unrankable } = crossSectional(rows, quoteYield);
     const failed = gaps.filter((g) => g.method === 'unmatched');
+    const missing = gaps.filter((g) => g.rawGap == null);
+    const missTotal = missing.length;
+    const missByReason = countBy(missing, missReason);
+    const missByBucket = countBy(missing.filter((g) => g.bucket != null), (g) => g.bucket);
 
     // 통계 패널
     const statsPanel = `<div class="stats" style="margin-bottom:12px">
@@ -293,15 +321,28 @@ function renderQuotes() {
       <div class="stat"><div class="stat-label">세션 중앙값(베타)</div>
         <div class="stat-main" style="font-size:17px">${bm.sessionMedian == null ? '—' : (bm.sessionMedian > 0 ? '+' : '') + bp(bm.sessionMedian)}<span class="stat-unit">bp</span></div>
         <div class="stat-sub">내장민평 기반 N=${bm.sessionCount} · 버킷&lt;${RV_MIN_BUCKET_SAMPLE} 폴백</div></div>
+      <div class="stat"><div class="stat-label">오프셋 미상</div>
+        <div class="stat-main" style="font-size:17px">${gaps.length ? Math.round((missTotal / gaps.length) * 100) : 0}<span class="stat-unit">%</span></div>
+        <div class="stat-sub">${missTotal}/${gaps.length} · 랭킹 제외(사유는 아래)</div></div>
     </div>`;
 
+    // 사유별 카운트 — RV-2 §6.2 규약. 미상 건수가 크면 그 세션의 랭킹 자체가 대표성이
+    // 없다는 신호이므로 사용자가 알아야 한다.
+    const missSummary = missTotal ? `<div class="footnote" style="margin:0 0 12px">
+      <div>오프셋 미상 사유: ${reasonLine(missByReason, missTotal)}</div></div>` : '';
+
     // 버킷 중앙값 요약(당일 시장 베타 근사) — 표본 많은 순 상위
+    // 버킷 헤더에 미상 건수를 함께 적는다(`n=12 · 미상 3`) — RV-2 §6.2.
+    // 표본 n 만 보면 그 버킷의 랭킹이 대표성 있는 줄 오해한다.
     const bucketSummary = Object.keys(bm.bucketMedian)
-      .map((b) => ({ b, m: bm.bucketMedian[b], n: bm.bucketCount[b] }))
+      .map((b) => ({ b, m: bm.bucketMedian[b], n: bm.bucketCount[b], miss: missByBucket[b] || 0 }))
       .sort((a, b) => b.n - a.n).slice(0, 8)
-      .map((x) => `${esc(x.b)} <span class="mono">${x.m > 0 ? '+' : ''}${bp(x.m)}bp</span>(${x.n})`).join(' · ');
+      .map((x) => `${esc(x.b)} <span class="mono">${x.m > 0 ? '+' : ''}${bp(x.m)}bp</span>(n=${x.n}${x.miss ? ` · 미상 ${x.miss}` : ''})`).join(' · ');
+    // 유효 표본이 하나도 없어 중앙값 자체가 없는 버킷 — 위 목록에 아예 안 나온다.
+    const bucketsAllMissing = Object.keys(missByBucket).filter((b) => !(b in bm.bucketMedian));
     const sessionHeader = `<div class="footnote" style="margin:0 0 12px">
       <div>당일 버킷 중앙값(내장민평 기반 = 시장 베타 근사): ${bucketSummary || '—'}</div>
+      ${bucketsAllMissing.length ? `<div>유효 표본 0인 버킷 ${bucketsAllMissing.length}개(전건 미상): ${bucketsAllMissing.slice(0, 6).map(esc).join(' · ')}${bucketsAllMissing.length > 6 ? ' …' : ''}</div>` : ''}
       <div>매도 ${offers.length} · 매수 ${bids.length} · 괴리계산불가 ${unrankable.length} · 매칭실패 ${failed.length}</div></div>`;
 
     // RV 행: 발행사·종목·매칭·잔존·기준(값+출처)·호가%·원괴리·버킷중앙·조정괴리(강조)·검증
@@ -331,13 +372,22 @@ function renderQuotes() {
       <th class="num">기준%</th><th class="num">호가%</th><th class="num">원괴리</th><th class="num">버킷중앙</th><th class="num">조정괴리</th><th>검증</th></tr></thead>`;
     const rvTable = (list) => `<table class="q">${rvHead}<tbody>${list.map(rvRow).join('')}</tbody></table>`;
 
-    res.innerHTML = statsPanel + sessionHeader
+    // 목록은 접어 둔다. 사유별 카운트가 1차 표시이고, 원문은 여전히 버리지 않는다.
+    // (2026-08-05 샘플 기준 이 목록이 1,900건을 넘어 펼친 채로는 스크롤이 무의미했다.)
+    const unrankableBlock = unrankable.length
+      ? `<div class="sec-title">괴리 계산 불가 <span class="cap">사유별 카운트 우선 · 원문은 접어서 보존</span></div>`
+        + `<div class="footnote" style="margin:0 0 8px"><div>${reasonLine(countBy(unrankable, missReason), unrankable.length)}</div></div>`
+        + `<details style="margin:0 0 12px"><summary style="cursor:pointer;color:var(--muted);font-size:12px">원문 ${unrankable.length}건 펼치기</summary>`
+        + unrankable.map((g) => `<div class="excluded-line"><span class="why">[${esc(missReason(g))}]</span>${esc(g.q.issuer_raw)} · ${esc(g.q.raw_line).slice(0, 60)}</div>`).join('')
+        + '</details>'
+      : '';
+
+    res.innerHTML = statsPanel + missSummary + sessionHeader
       + `<div class="sec-title">매도호가 — 싸게 나온 순 <span class="cap">조정괴리 큰 순 · 민평보다 높은 수익률</span></div>`
       + (offers.length ? rvTable(offers) : '<div class="cap" style="padding:6px">해당 없음</div>')
       + `<div class="sec-title">매수호가 — 비싸게 사려는 순 <span class="cap">조정괴리 작은(음수) 순 · 보유물 매도 기회</span></div>`
       + (bids.length ? rvTable(bids) : '<div class="cap" style="padding:6px">해당 없음</div>')
-      + (unrankable.length ? `<div class="sec-title">괴리 계산 불가 <span class="cap">원(won) 스프레드=듀레이션 필요(범위 외) · 기준없음(외삽)</span></div>`
-        + unrankable.map((g) => `<div class="excluded-line"><span class="why">[${esc(g.quoteYieldBasis === '원(듀레이션 필요)' ? '원단위' : (g.reference == null ? '기준없음' : '미상'))}]</span>${esc(g.q.issuer_raw)} · ${esc(g.q.raw_line).slice(0, 60)}</div>`).join('') : '')
+      + unrankableBlock
       + (failed.length ? `<div class="sec-title">매칭 실패 <span class="cap">발행사·그룹 모두 매칭 실패 — 버리지 않고 표시</span></div>`
         + [...failed].reverse().map((g) => `<div class="excluded-line"><span class="why">[매칭실패]</span>${esc(g.q.issuer_raw)} · ${esc(g.q.raw_line).slice(0, 60)}</div>`).join('') : '');
   }
