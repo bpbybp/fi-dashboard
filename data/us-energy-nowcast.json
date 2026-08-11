@@ -9,7 +9,7 @@
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
         "last_updated": "2026-08",
-        "last_weeks": 1
+        "last_weeks": 2
       },
       "data": [
         {
@@ -1069,8 +1069,8 @@
         },
         {
           "period": "2026-08",
-          "value": 4.079,
-          "weeks": 1
+          "value": 4.0425,
+          "weeks": 2
         }
       ]
     },
@@ -1080,7 +1080,7 @@
         "unit": "Dollars per Barrel",
         "sa": "NSA",
         "freq": "monthly-avg-of-daily",
-        "last_updated": "2026-07"
+        "last_updated": "2026-08"
       },
       "data": [
         {
@@ -2135,8 +2135,13 @@
         },
         {
           "period": "2026-07",
-          "value": 79.54111111111112,
-          "weeks": 18
+          "value": 80.45636363636366,
+          "weeks": 22
+        },
+        {
+          "period": "2026-08",
+          "value": 81.96,
+          "weeks": 1
         }
       ]
     },
