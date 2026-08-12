@@ -27,30 +27,35 @@ echo ============================================================
 echo.
 echo   1 = 커브 RV             (credit-spread + curve-rv-backtest)
 echo   2 = on/off 스프레드     (onoff-ktb3y)
-echo   3 = 전체                (1 + 2 + 4)
+echo   3 = 전체                (1 + 2 + 4 + 5)
 echo   4 = on/off 커브 단면    (onoff-bonds)
+echo   5 = KTB 커브 (국고 민평 커브)
 echo.
 set "MODE="
-set /p MODE=선택 (1/2/3/4, 엔터=3): 
+set /p MODE=선택 (1/2/3/4/5, 엔터=3): 
 if "%MODE%"=="" set "MODE=3"
 if "%MODE%"=="1" goto mode_ok
 if "%MODE%"=="2" goto mode_ok
 if "%MODE%"=="3" goto mode_ok
 if "%MODE%"=="4" goto mode_ok
+if "%MODE%"=="5" goto mode_ok
 echo.
-echo [실패] 잘못된 입력입니다. 1, 2, 3, 4 중 하나를 입력하세요.
+echo [실패] 잘못된 입력입니다. 1, 2, 3, 4, 5 중 하나를 입력하세요.
 goto end_err
 
 :mode_ok
 set "DO_CURVE=0"
 set "DO_ONOFF=0"
 set "DO_BONDS=0"
+set "DO_KTBC=0"
 if "%MODE%"=="1" set "DO_CURVE=1"
 if "%MODE%"=="2" set "DO_ONOFF=1"
 if "%MODE%"=="4" set "DO_BONDS=1"
+if "%MODE%"=="5" set "DO_KTBC=1"
 if "%MODE%"=="3" set "DO_CURVE=1"
 if "%MODE%"=="3" set "DO_ONOFF=1"
 if "%MODE%"=="3" set "DO_BONDS=1"
+if "%MODE%"=="3" set "DO_KTBC=1"
 
 REM ---- [사전] .gitattributes 부트스트랩 (없을 때 1회만) ----
 if exist ".gitattributes" goto attr_done
@@ -100,6 +105,17 @@ echo   - on/off 커브 단면(종목): xlsx 변환 + 구조 검증
 node tools\convert-onoff-bonds.mjs
 if errorlevel 1 goto bonds_conv_fail
 
+if "%DO_KTBC%"=="0" goto conv_ktbc_done
+if not exist "_local\curve-data.xlsx" (
+    echo   KTB 커브: _local\curve-data.xlsx 없음 - 건너뜀
+    set "DO_KTBC=0"
+    goto conv_ktbc_done
+)
+echo   - KTB 커브(국고 민평): xlsx 변환
+powershell -NoProfile -ExecutionPolicy Bypass -File "tools\convert-curve.ps1"
+if errorlevel 1 goto ktbc_conv_fail
+:conv_ktbc_done
+
 REM ---- [3/6] 변경 감지 (add 후 staged diff 판정 = 줄바꿈 정규화 반영) ----
 :detect
 echo.
@@ -110,6 +126,8 @@ set "BONDS_CHANGED=0"
 set "CURVE_DATE="
 set "ONOFF_DATE="
 set "BONDS_DATE="
+set "KTBC_CHANGED=0"
+set "KTBC_DATE="
 
 if "%DO_CURVE%"=="0" goto detect_onoff
 git add data/credit-spread.js data/curve-rv-backtest.js 2>nul
@@ -139,23 +157,37 @@ if not defined ONOFF_DATE goto onoff_date_fail
 echo   on/off 스프레드: !ONOFF_DATE! 갱신분 감지
 
 :detect_bonds
-if "%DO_BONDS%"=="0" goto confirm
+if "%DO_BONDS%"=="0" goto detect_ktbc
 git add data/onoff-bonds.js 2>nul
 git diff --cached --quiet -- data/onoff-bonds.js
 if not errorlevel 1 (
     echo   on/off 커브 단면: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
-    goto confirm
+    goto detect_ktbc
 )
 set "BONDS_CHANGED=1"
 for /f "usebackq delims=" %%D in (`node -e "global.window={};const fs=require('fs');eval(fs.readFileSync('data/onoff-bonds.js','utf8'));process.stdout.write(window.ONOFF_BONDS.updated)"`) do set "BONDS_DATE=%%D"
 if not defined BONDS_DATE goto bonds_date_fail
 echo   on/off 커브 단면: !BONDS_DATE! 갱신분 감지
 
+:detect_ktbc
+if "%DO_KTBC%"=="0" goto confirm
+git add data/ktb-curve.js 2>nul
+git diff --cached --quiet -- data/ktb-curve.js
+if not errorlevel 1 (
+    echo   KTB 커브: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
+    goto confirm
+)
+set "KTBC_CHANGED=1"
+for /f "usebackq delims=" %%D in (`node -e "global.window={};const fs=require('fs');eval(fs.readFileSync('data/ktb-curve.js','utf8'));const r=window.KTB_CURVE.rows;process.stdout.write(r[r.length-1][0])"`) do set "KTBC_DATE=%%D"
+if not defined KTBC_DATE goto ktbc_date_fail
+echo   KTB 커브: !KTBC_DATE! 갱신분 감지
+
 REM ---- [4/6] 커밋 확인 ----
 :confirm
 if "%CURVE_CHANGED%"=="1" goto confirm_show
 if "%ONOFF_CHANGED%"=="1" goto confirm_show
 if "%BONDS_CHANGED%"=="1" goto confirm_show
+if "%KTBC_CHANGED%"=="1" goto confirm_show
 goto no_data_change
 
 :confirm_show
@@ -164,10 +196,11 @@ echo [4/6] 커밋 예정:
 if "%CURVE_CHANGED%"=="1" echo   - data: 커브 RV 데이터 !CURVE_DATE! 갱신
 if "%ONOFF_CHANGED%"=="1" echo   - data: on/off 스프레드 !ONOFF_DATE! 갱신
 if "%BONDS_CHANGED%"=="1" echo   - data: on/off 커브 단면 !BONDS_DATE! 갱신
+if "%KTBC_CHANGED%"=="1" echo   - data: 국고 민평 커브 !KTBC_DATE! 갱신
 set "CONFIRM="
 set /p CONFIRM=커밋 + 푸시 진행? (Y/N): 
 if /i "!CONFIRM!"=="Y" goto do_commit
-git reset -q -- data/credit-spread.js data/curve-rv-backtest.js data/onoff-ktb3y.js data/onoff-bonds.js
+git reset -q -- data/credit-spread.js data/curve-rv-backtest.js data/onoff-ktb3y.js data/onoff-bonds.js data/ktb-curve.js
 echo 중단 - 커밋하지 않았습니다. 스테이징 해제, 변경은 워킹트리에 남아있습니다.
 goto end_ok
 
@@ -183,8 +216,12 @@ if "%ONOFF_CHANGED%"=="0" goto commit_bonds
 git commit -m "data: on/off 스프레드 !ONOFF_DATE! 갱신" -- data/onoff-ktb3y.js
 if errorlevel 1 goto git_fail
 :commit_bonds
-if "%BONDS_CHANGED%"=="0" goto push_step
+if "%BONDS_CHANGED%"=="0" goto commit_ktbc
 git commit -m "data: on/off 커브 단면 !BONDS_DATE! 갱신" -- data/onoff-bonds.js
+if errorlevel 1 goto git_fail
+:commit_ktbc
+if "%KTBC_CHANGED%"=="0" goto push_step
+git commit -m "data: 국고 민평 커브 !KTBC_DATE! 갱신" -- data/ktb-curve.js
 if errorlevel 1 goto git_fail
 goto push_step
 
@@ -216,7 +253,8 @@ echo ============================================================
 if "%CURVE_CHANGED%"=="1" echo  [완료] 커브 RV !CURVE_DATE! 배포됨
 if "%ONOFF_CHANGED%"=="1" echo  [완료] on/off 스프레드 !ONOFF_DATE! 배포됨
 if "%BONDS_CHANGED%"=="1" echo  [완료] on/off 커브 단면 !BONDS_DATE! 배포됨
-if "%CURVE_CHANGED%"=="0" if "%ONOFF_CHANGED%"=="0" if "%BONDS_CHANGED%"=="0" echo  [완료] 기존 미푸시 커밋 %AHEAD%건 배포됨
+if "%KTBC_CHANGED%"=="1" echo  [완료] 국고 민평 커브 !KTBC_DATE! 배포됨
+if "%CURVE_CHANGED%"=="0" if "%ONOFF_CHANGED%"=="0" if "%BONDS_CHANGED%"=="0" if "%KTBC_CHANGED%"=="0" echo  [완료] 기존 미푸시 커밋 %AHEAD%건 배포됨
 echo  브라우저에서 해당 페이지 확인 권장.
 echo ============================================================
 
@@ -261,9 +299,20 @@ echo [실패] convert-onoff-bonds.mjs 변환/구조 검증 실패 - 위 오류 �
 echo         (축소 감지 가드에 걸린 경우 종목 수/최고 일자 메시지 확인)
 goto end_err
 
+:ktbc_conv_fail
+echo.
+echo [실패] convert-curve.ps1 변환 실패 - 위 오류 확인. 커밋하지 않았습니다.
+echo         (컬럼 불일치/데이터 0건이면 _local\curve-data.xlsx 시트 구조 확인)
+goto end_err
+
 :bonds_date_fail
 echo.
 echo [실패] onoff-bonds.js 에서 updated 날짜 추출 불가 - 파일 형식 확인 필요.
+goto end_err
+
+:ktbc_date_fail
+echo.
+echo [실패] ktb-curve.js 에서 마지막 행 날짜 추출 불가 - 파일 형식 확인 필요.
 goto end_err
 
 :git_fail
