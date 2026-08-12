@@ -13,6 +13,7 @@ export const NAV_ITEMS = [
   { id: 'ga1', title: '연간 GDP 환산', file: 'gdp-annual.html', desc: '분기 전기비(계절조정) 실적 체인 + 잔여분기 시나리오로 연간 GDP 성장률 순수 산술 환산 (입력형·외부 fetch 없음)' },
   { id: 'curve-rv', title: 'Curve RV', file: 'curve-rv.html', desc: '크레딧 스프레드 섹터×만기 상대가치 (캐리·롤·percentile·백테스트)' },
   { id: 'curve-phase', title: 'Curve Phase', file: 'curve-phase.html', desc: '커브 국면 — 프라이싱 갭·r* 재조정·텀프리미엄 3변수로 플랫/스팁 국면 판별 (ECOS+FRED, KR 주력·US 참고)' },
+  { id: 'ce', title: 'CE 캐리·롤다운', file: 'curve-efficiency.html', desc: '구간별 초과캐리·롤다운·BE(브레이크이븐) + 효율균등 커브 대비 괴리 — 어느 만기를 들고 있는 것이 유리한지 측정 (시가평가 3사평균 국고채권)' },
   { id: 'us-credit-spread', title: 'US Credit Spread', file: 'us-credit-spread.html', desc: '미국 IG·HY·등급별 OAS + 파생 스프레드(BBB−A·A−AA·장기−전체) z250 — 하이퍼스케일러 발행압력 측정 (FRED BAML)' },
   { id: 'rv-screener', title: 'RV 스크리너', file: 'rv-screener.html', desc: 'K본드 호가 vs 민평 그리드 상대가치 — 발행사 커브 보간·횡단면 조정괴리로 수급 이상치 판별 (클라이언트 온리)' },
   { id: 'rv2-quote-rank', title: '호가 랭킹', file: 'rv2-quote-rank.html', desc: '케이본드 호가 vs 민평 오프셋(bp) — 섹터 버킷 중앙값 차감 후 싸게 나온 순 랭킹 (민평 업로드 없음·클라이언트 온리)' },
