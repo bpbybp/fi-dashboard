@@ -21,3 +21,4 @@ scripts/.nowcast-cache.json
 
 # on/off 산출물 자동 백업(convert-onoff.mjs 가 덮어쓰기 직전 남김 — 로컬 복구용)
 data/_backup/
+_local/
