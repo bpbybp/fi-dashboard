@@ -11,12 +11,8 @@
       "cleveland": "클리블랜드 연은 (클리블랜드 나우캐스트)",
       "actual": "실제"
     },
-    "last_actual": "2026-06",
+    "last_actual": "2026-07",
     "recent_actual_yoy": [
-      {
-        "month": "2025-05",
-        "yoy": 2.38
-      },
       {
         "month": "2025-06",
         "yoy": 2.68
@@ -64,6 +60,10 @@
       {
         "month": "2026-06",
         "yoy": 3.46
+      },
+      {
+        "month": "2026-07",
+        "yoy": 3.3
       }
     ]
   },
@@ -117,7 +117,7 @@
     },
     {
       "month": "2026-07",
-      "frozen": false,
+      "frozen": true,
       "seasonal": {
         "mm": 0.184,
         "yoy": 3.42
@@ -132,22 +132,25 @@
         }
       },
       "sealed": {
-        "yoy": null
+        "yoy": null,
+        "late": false
       },
       "consensus": {
-        "yoy": null
+        "yoy": null,
+        "late": false
       },
       "cleveland": {
-        "yoy": null
+        "yoy": null,
+        "late": false
       },
       "actual": {
-        "yoy": null,
-        "mm": null
+        "yoy": 3.3,
+        "mm": 0.074
       },
       "miss_reason": null,
       "errors": {
-        "seasonal": null,
-        "combined": null,
+        "seasonal": 0.12,
+        "combined": 0.12,
         "sealed": null,
         "consensus": null,
         "cleveland": null
@@ -190,6 +193,88 @@
             "yoy": 3.06
           }
         ]
+      },
+      "frozen_manual": {
+        "sealed": false,
+        "consensus": false,
+        "cleveland": false
+      }
+    },
+    {
+      "month": "2026-08",
+      "frozen": false,
+      "seasonal": {
+        "mm": 0.255,
+        "yoy": 3.21
+      },
+      "combined": {
+        "mm": 0.417,
+        "yoy": 3.37,
+        "reg": {
+          "b": 0.496,
+          "r2": 0.915,
+          "w_e": 0.075
+        }
+      },
+      "band": {
+        "month": "2026-08",
+        "passthrough": {
+          "b": 0.463,
+          "r2": 0.76,
+          "n": 24,
+          "method": "WTI m/m → 휘발유 m/m, 24개월 디시즌·점-시점 회귀",
+          "note": "스팟 유지 가정 (FRED 단일 스팟 DCOILWTICO만 가용 — 선물 커브 미반영). ±20%는 현 스팟 대비 레벨 충격."
+        },
+        "base": {
+          "mm": 0.417,
+          "yoy": 3.37,
+          "w_e": 0.075,
+          "b_ge": 0.496
+        },
+        "branches": [
+          {
+            "key": "up20",
+            "shock": 20,
+            "gas_delta_mm": 9.255,
+            "mm": 0.761,
+            "yoy": 3.73
+          },
+          {
+            "key": "hold",
+            "shock": 0,
+            "gas_delta_mm": 0,
+            "mm": 0.417,
+            "yoy": 3.37
+          },
+          {
+            "key": "down20",
+            "shock": -20,
+            "gas_delta_mm": -9.255,
+            "mm": 0.073,
+            "yoy": 3.02
+          }
+        ]
+      },
+      "sealed": {
+        "yoy": null
+      },
+      "consensus": {
+        "yoy": null
+      },
+      "cleveland": {
+        "yoy": null
+      },
+      "actual": {
+        "yoy": null,
+        "mm": null
+      },
+      "miss_reason": null,
+      "errors": {
+        "seasonal": null,
+        "combined": null,
+        "sealed": null,
+        "consensus": null,
+        "cleveland": null
       }
     }
   ]

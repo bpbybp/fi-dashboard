@@ -9,7 +9,7 @@
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
         "last_updated": "2026-08",
-        "last_weeks": 2
+        "last_weeks": 3
       },
       "data": [
         {
@@ -1069,8 +1069,8 @@
         },
         {
           "period": "2026-08",
-          "value": 4.0425,
-          "weeks": 2
+          "value": 4.044666666666667,
+          "weeks": 3
         }
       ]
     },
@@ -2140,8 +2140,8 @@
         },
         {
           "period": "2026-08",
-          "value": 81.96,
-          "weeks": 1
+          "value": 80.46428571428571,
+          "weeks": 7
         }
       ]
     },
@@ -2151,7 +2151,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-06"
+        "last_updated": "2026-07"
       },
       "data": [
         {
@@ -2989,6 +2989,10 @@
         {
           "period": "2026-06",
           "value": 319.29
+        },
+        {
+          "period": "2026-07",
+          "value": 314.553
         }
       ]
     },
@@ -2998,7 +3002,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-06"
+        "last_updated": "2026-07"
       },
       "data": [
         {
@@ -3836,6 +3840,10 @@
         {
           "period": "2026-06",
           "value": 349.609
+        },
+        {
+          "period": "2026-07",
+          "value": 349.881
         }
       ]
     }
