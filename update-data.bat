@@ -93,6 +93,9 @@ if "%DO_CURVE%"=="0" goto conv_onoff
 echo   - 커브 RV: convert + backtest
 call node tools\update-curve-data.mjs
 if errorlevel 1 goto curve_conv_fail
+echo   - CS-1 크레딧 섹터 스프레드: yield 시트 변환
+node tools\build-cs1.mjs
+if errorlevel 1 goto cs1_conv_fail
 :conv_onoff
 if "%DO_ONOFF%"=="0" goto conv_bonds
 echo   - on/off 스프레드(세대): xlsx 변환 + 구조 검증
@@ -276,6 +279,12 @@ goto end_err
 :curve_conv_fail
 echo.
 echo [실패] update-curve-data.mjs 비정상 종료 - 위 오류 확인. 커밋하지 않았습니다.
+goto end_err
+
+:cs1_conv_fail
+echo.
+echo [실패] build-cs1.mjs 비정상 종료 - 위 오류 확인. 커밋하지 않았습니다.
+echo        data/cs1/spreads.json 은 갱신되지 않았습니다.
 goto end_err
 
 :onoff_conv_fail
