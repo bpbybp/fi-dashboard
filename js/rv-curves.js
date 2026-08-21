@@ -29,8 +29,14 @@ const GRADE_COLORS = {
 };
 const DASH_FAMILIES = ['카드채', '여전채']; // 등급 내 패밀리 구분: 이들은 dash, 나머지 solid
 
+// 등급 안에서의 패밀리 색 미세조정 — GRADE_COLORS 보다 우선한다.
+//   AAA 한 등급에 공사·은행·회사에 더해 산금·중금까지 5개가 몰려 전부 같은 파랑 solid 가 되면
+//   차트에서 서로 분간이 안 된다. 정책금융기관채(산금·중금)만 같은 파랑 계열의 명도 변주로 뗀다.
+//   '등급=색' 규약은 유지(계열을 바꾸지 않는다). 되돌리려면 이 맵을 비우면 된다.
+const FAMILY_COLORS = { '산금채': '#8ab4ff', '중금채': '#2f6fe0' };
+
 // 기본 노출 섹터(그 외는 legendonly). 국고채권은 금리 모드에서만 추가 노출.
-const DEFAULT_VISIBLE = new Set(['공사채AAA', '은행채AAA', '회사채AAA', '회사채AA-', '회사채A0', '회사채BBB+']);
+const DEFAULT_VISIBLE = new Set(['산금채AAA', '중금채AAA', '공사채AAA', '은행채AAA', '회사채AAA', '회사채AA-', '회사채A0', '회사채BBB+']);
 
 // ── 순수 계산 (테스트 대상) ──
 
@@ -72,7 +78,8 @@ function num(v) { return typeof v === 'number' && Number.isFinite(v); }
 function familyOf(sector) { return sector.slice(0, 3); }
 function gradeOf(sector) { return sector.slice(3); } // 패밀리(3자) 제거 → 등급
 function sectorColor(sector) {
-  return sector === '국고채권' ? COLORS.accent : (GRADE_COLORS[gradeOf(sector)] || COLORS.muted);
+  if (sector === '국고채권') return COLORS.accent;
+  return FAMILY_COLORS[familyOf(sector)] || GRADE_COLORS[gradeOf(sector)] || COLORS.muted;
 }
 function isDash(sector) { return DASH_FAMILIES.includes(familyOf(sector)); }
 

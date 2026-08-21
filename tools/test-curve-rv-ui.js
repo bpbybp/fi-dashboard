@@ -18,9 +18,12 @@ async function main() {
 
   console.log('════ 게이트 2: 히트맵/드릴다운/스테일 스모크 ════');
   const credit = DATA.meta.sectors.filter(s => s !== '국고채권');
-  t('excess 히트맵 차원 = (1+13)×10, 10년·BBB+ 제외', () => {
+  // 행수는 데이터에서 파생한다 — 시리즈가 추가되면(2026-08 산금·중금) 상수는 깨지지만
+  // "국고 1 + 숨김 제외 크레딧" 이라는 불변식은 그대로 참이다. 검사할 값은 후자다.
+  const shownCredit = credit.filter(s => !H.HIDDEN_SECTORS.includes(s));
+  t(`excess 히트맵 차원 = (1+${shownCredit.length})×10, 10년·BBB+ 제외`, () => {
     const hd = H.buildHeatmap(DATA, { mode: 'excess', horizonMonths: 1 });
-    assert.equal(hd.rows.length, 14); // 국고 + 크레딧 13(회사채BBB+ 숨김)
+    assert.equal(hd.rows.length, 1 + shownCredit.length); // 국고 + 크레딧(숨김 섹터 제외)
     assert.equal(hd.cols.length, 10);
     assert.ok(!hd.cols.includes('10년'), '10년 표시 제외');
     assert.ok(!hd.rows.includes('회사채BBB+'), 'BBB+ 표시 제외');
