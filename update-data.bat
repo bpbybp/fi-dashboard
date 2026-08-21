@@ -3,7 +3,7 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 REM ============================================================
-REM  fi-dashboard 데이터 갱신 원클릭 (커브 RV + on/off 세대/종목 통합) v2.1
+REM  fi-dashboard 데이터 갱신 원클릭 (크레딧 스프레드 + on/off 세대/종목 통합) v2.1
 REM  사용법: 만기확장/on-off xlsx를 레포 루트에 배치 후 더블클릭
 REM  위치:  레포 루트에 두고 실행
 REM
@@ -25,7 +25,7 @@ echo ============================================================
 echo  fi-dashboard 데이터 갱신 원클릭
 echo ============================================================
 echo.
-echo   1 = 커브 RV             (credit-spread + curve-rv-backtest)
+echo   1 = 크레딧 스프레드     (커브 RV + CS-1)
 echo   2 = on/off 스프레드     (onoff-ktb3y)
 echo   3 = 전체                (1 + 2 + 4 + 5)
 echo   4 = on/off 커브 단면    (onoff-bonds)
@@ -136,7 +136,7 @@ if "%DO_CURVE%"=="0" goto detect_onoff
 git add data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json 2>nul
 git diff --cached --quiet -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
 if not errorlevel 1 (
-    echo   커브 RV: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
+    echo   크레딧 스프레드: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
     goto detect_onoff
 )
 set "CURVE_CHANGED=1"
@@ -144,7 +144,7 @@ git --no-pager diff --cached --stat -- data/credit-spread.js data/curve-rv-backt
 node -e "const m=require('fs').readFileSync('data/credit-spread.js','utf8').match(/last_updated[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2})/);process.stdout.write(m?m[1]:'')" > "%TEMP%\curve_rv_date.txt"
 set /p CURVE_DATE=<"%TEMP%\curve_rv_date.txt"
 if "%CURVE_DATE%"=="" goto curve_date_fail
-echo   커브 RV: %CURVE_DATE% 갱신분 감지
+echo   크레딧 스프레드: %CURVE_DATE% 갱신분 감지
 
 :detect_onoff
 if "%DO_ONOFF%"=="0" goto detect_bonds
@@ -196,7 +196,7 @@ goto no_data_change
 :confirm_show
 echo.
 echo [4/6] 커밋 예정:
-if "%CURVE_CHANGED%"=="1" echo   - data: 커브 RV 데이터 !CURVE_DATE! 갱신
+if "%CURVE_CHANGED%"=="1" echo   - data: 크레딧 스프레드 데이터 !CURVE_DATE! 갱신
 if "%ONOFF_CHANGED%"=="1" echo   - data: on/off 스프레드 !ONOFF_DATE! 갱신
 if "%BONDS_CHANGED%"=="1" echo   - data: on/off 커브 단면 !BONDS_DATE! 갱신
 if "%KTBC_CHANGED%"=="1" echo   - data: 국고 민평 커브 !KTBC_DATE! 갱신
@@ -212,7 +212,7 @@ REM ---- [5/6] 커밋 (경로 지정으로 모듈별 분리) ----
 echo.
 echo [5/6] 커밋 ...
 if "%CURVE_CHANGED%"=="0" goto commit_onoff
-git commit -m "data: 커브 RV 데이터 !CURVE_DATE! 갱신" -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
+git commit -m "data: 크레딧 스프레드 데이터 !CURVE_DATE! 갱신" -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
 if errorlevel 1 goto git_fail
 :commit_onoff
 if "%ONOFF_CHANGED%"=="0" goto commit_bonds
@@ -253,7 +253,7 @@ if errorlevel 1 goto push_fail
 
 echo.
 echo ============================================================
-if "%CURVE_CHANGED%"=="1" echo  [완료] 커브 RV !CURVE_DATE! 배포됨
+if "%CURVE_CHANGED%"=="1" echo  [완료] 크레딧 스프레드 !CURVE_DATE! 배포됨
 if "%ONOFF_CHANGED%"=="1" echo  [완료] on/off 스프레드 !ONOFF_DATE! 배포됨
 if "%BONDS_CHANGED%"=="1" echo  [완료] on/off 커브 단면 !BONDS_DATE! 배포됨
 if "%KTBC_CHANGED%"=="1" echo  [완료] 국고 민평 커브 !KTBC_DATE! 배포됨
