@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CS 크레딧 섹터 스프레드 | FI Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 28px 22px 80px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: #08111f; }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 3px; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+
+  .series-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 9px; margin-bottom: 18px; font-size: 12px; }
+  .series-bar .sname { font-size: 14px; font-weight: 600; }
+  .series-bar .meta { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .series-bar .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border-2); color: var(--muted); }
+  .series-bar .asof { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 14px; align-items: center; }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden; }
+  .seg button { background: transparent; border: none; color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: #08111f; font-weight: 600; }
+  .seg button:hover:not(.active) { background: var(--panel-2); color: var(--text); }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; }
+  .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; line-height: 1.7; }
+
+  /* 초기 로드 스피너 — JSON 3.1MB */
+  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: var(--muted); font-size: 13px; }
+  .loading::before { content: ''; width: 16px; height: 16px; border: 2px solid var(--border-2);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── 자(ruler) 표 ──
+     숫자는 전부 무채색이다. 확대/축소를 색으로 칠하지 않는다 — 이 화면은 측정만 하고
+     좋다/나쁘다를 말하지 않는다. 유일한 색은 범위 바의 현위치 마커(--accent)뿐이며,
+     그것도 '어디쯤인가'를 가리킬 뿐 판정이 아니다. */
+  .tbl-wrap { overflow-x: auto; }
+  table.cs1 { border-collapse: collapse; width: 100%; font-family: var(--mono); }
+  table.cs1 thead th { position: sticky; top: 0; z-index: 2; background: var(--panel);
+    color: var(--muted); font-weight: 600; font-size: 11px; text-align: right;
+    padding: 8px 10px; border-bottom: 1px solid var(--border-2); white-space: nowrap; }
+  table.cs1 thead th.corner { text-align: left; min-width: 190px; }
+  table.cs1 tbody th { text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap;
+    padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.cs1 tbody th .rl { display: block; color: var(--text); }
+  table.cs1 tbody th .rs { display: block; font-size: 10px; color: var(--muted); font-weight: 400; }
+  table.cs1 td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: right;
+    white-space: nowrap; vertical-align: top; min-width: 92px; }
+
+  /* 그룹 머리 행 */
+  table.cs1 tr.grp th { background: var(--panel-2); color: var(--muted); font-size: 10.5px;
+    text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; padding: 6px 10px;
+    border-bottom: 1px solid var(--border-2); }
+
+  /* 셀 내부 5줄: 현재값 / 전일 Δ / YTD 범위 바 / YTD 범위 / 250일 범위 / z250 */
+  table.cs1 td .v { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.25; }
+  table.cs1 td .d { font-size: 10.5px; color: var(--muted); line-height: 1.35; }
+  table.cs1 td .r,
+  table.cs1 td .w,
+  table.cs1 td .z { font-size: 10px; color: var(--muted); line-height: 1.35; }
+  table.cs1 td.nil { color: var(--border-2); text-align: center; }
+
+  /* 미니 범위 바 — 트랙은 YTD min–max, 마커는 현위치 한 점.
+     구간을 색으로 나누지 않는다(밴드=판정이 되어버린다). */
+  table.cs1 td .bar { position: relative; height: 6px; margin: 5px 0 4px;
+    background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 3px; }
+  table.cs1 td .bar i { position: absolute; top: -2px; width: 2px; height: 8px;
+    background: var(--accent); border-radius: 1px; transform: translateX(-1px); }
+  table.cs1 td .bar.empty { opacity: 0.35; }
+
+  #cs1-rest { width: 100%; margin-top: 12px; background: var(--panel); border: 1px solid var(--border-2);
+    color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 9px 12px;
+    border-radius: 7px; cursor: pointer; }
+  #cs1-rest:hover { background: var(--panel-2); color: var(--text); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">
+    <span class="step">CS</span>
+    <span class="ctx">크레딧 섹터 스프레드 · 민평 3사평균 · 국고 대비 bp</span>
+  </div>
+  <h1>크레딧 섹터 스프레드</h1>
+  <p class="tagline">발행금리를 보고 그 레벨이 올해 범위 어디쯤인지 바로 읽는 자(ruler). 값과 범위만 표시하며 판단·시그널은 없다.</p>
+
+  <div id="cs1-status" class="loading">데이터 로드 중 (data/cs1/spreads.json · 3.1MB)</div>
+
+  <div id="cs1-app" style="display:none">
+    <div class="series-bar">
+      <span class="sname">기준일</span>
+      <span class="asof" id="cs1-asof">—</span>
+      <span class="tag">cs1/spreads.json</span>
+      <span class="meta">기준 <span id="cs1-bench">—</span></span>
+      <span class="meta" id="cs1-count">—</span>
+      <span class="meta">기간 <span id="cs1-range">—</span></span>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">만기</span>
+        <div class="seg" id="cs1-tenor">
+          <button data-tenor="default">1Y · 2Y · 3Y · 5Y</button>
+          <button data-tenor="all">전체 11만기</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tbl-wrap">
+        <table class="cs1">
+          <thead id="cs1-head"></thead>
+          <tbody id="cs1-body"></tbody>
+        </table>
+      </div>
+      <button id="cs1-rest" type="button" aria-expanded="false">그 외 펼치기</button>
+      <div class="note">
+        셀 = 현재값(bp) / 전일 Δ / YTD 범위 바(막대 = 올해 min–max, 눈금 = 현위치) / YTD min–max / 250영업일 min–max / z250.<br>
+        전부 국고 동일만기 대비 bp이며, 섹터 간 행은 두 섹터의 수익률 차다. 셀에 마우스를 올리면 표본 일수까지 나온다.<br>
+        z250 = 최근 250영업일 표본 대비 표준화(유효 관측 120일 미만이거나 σ=0이면 —). 결측은 채우지 않고 비워 둔다.
+      </div>
+    </div>
+
+    <div class="note">
+      데이터는 composite xlsx 의 <code>yield</code> 시트(민평 3사평균 원수익률)에서 스프레드를 직접 계산한 것이다
+      (Excel 파생 <code>spread</code> 시트는 쓰지 않는다). 국고 당일 레벨은 표시하지 않는다 — 절대금리는 보는 사람이 감안한다.<br>
+      산금채AAA·중금채AAA 는 별개 행이지만, 최근 250영업일 기준 3년 이하 전 만기에서 두 값의 차이가 0.0bp 다(차이는 4년 이상에서만 난다).<br>
+      갱신: <code>node tools/build-cs1.mjs</code> (소스 xlsx 를 레포 루트에 둔 뒤).
+    </div>
+  </div>
+</div>
+
+<!-- 공통 내비게이션 -->
+<script type="module" src="js/nav.js"></script>
+<!-- app (ES module) -->
+<script type="module">
+  import { initCs1 } from './js/cs1/cs1-ui.js';
+  initCs1();
+</script>
+</body>
+</html>
