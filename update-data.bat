@@ -133,14 +133,14 @@ set "KTBC_CHANGED=0"
 set "KTBC_DATE="
 
 if "%DO_CURVE%"=="0" goto detect_onoff
-git add data/credit-spread.js data/curve-rv-backtest.js 2>nul
-git diff --cached --quiet -- data/credit-spread.js data/curve-rv-backtest.js
+git add data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json 2>nul
+git diff --cached --quiet -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
 if not errorlevel 1 (
     echo   커브 RV: 변경 없음 - 이미 최신 또는 줄바꿈 차이만 존재
     goto detect_onoff
 )
 set "CURVE_CHANGED=1"
-git --no-pager diff --cached --stat -- data/credit-spread.js data/curve-rv-backtest.js
+git --no-pager diff --cached --stat -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
 node -e "const m=require('fs').readFileSync('data/credit-spread.js','utf8').match(/last_updated[^0-9]*([0-9]{4}-[0-9]{2}-[0-9]{2})/);process.stdout.write(m?m[1]:'')" > "%TEMP%\curve_rv_date.txt"
 set /p CURVE_DATE=<"%TEMP%\curve_rv_date.txt"
 if "%CURVE_DATE%"=="" goto curve_date_fail
@@ -203,7 +203,7 @@ if "%KTBC_CHANGED%"=="1" echo   - data: 국고 민평 커브 !KTBC_DATE! 갱신
 set "CONFIRM="
 set /p CONFIRM=커밋 + 푸시 진행? (Y/N): 
 if /i "!CONFIRM!"=="Y" goto do_commit
-git reset -q -- data/credit-spread.js data/curve-rv-backtest.js data/onoff-ktb3y.js data/onoff-bonds.js data/ktb-curve.js
+git reset -q -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json data/onoff-ktb3y.js data/onoff-bonds.js data/ktb-curve.js
 echo 중단 - 커밋하지 않았습니다. 스테이징 해제, 변경은 워킹트리에 남아있습니다.
 goto end_ok
 
@@ -212,7 +212,7 @@ REM ---- [5/6] 커밋 (경로 지정으로 모듈별 분리) ----
 echo.
 echo [5/6] 커밋 ...
 if "%CURVE_CHANGED%"=="0" goto commit_onoff
-git commit -m "data: 커브 RV 데이터 !CURVE_DATE! 갱신" -- data/credit-spread.js data/curve-rv-backtest.js
+git commit -m "data: 커브 RV 데이터 !CURVE_DATE! 갱신" -- data/credit-spread.js data/curve-rv-backtest.js data/cs1/spreads.json
 if errorlevel 1 goto git_fail
 :commit_onoff
 if "%ONOFF_CHANGED%"=="0" goto commit_bonds

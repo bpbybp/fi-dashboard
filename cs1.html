@@ -42,7 +42,7 @@
   .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
   .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; line-height: 1.7; }
 
-  /* 초기 로드 스피너 — JSON 3.1MB */
+  /* 초기 로드 스피너 — 시계열 JSON 전량을 한 번에 받는다 */
   .loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: var(--muted); font-size: 13px; }
   .loading::before { content: ''; width: 16px; height: 16px; border: 2px solid var(--border-2);
     border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
@@ -101,7 +101,7 @@
   <h1>크레딧 섹터 스프레드</h1>
   <p class="tagline">발행금리를 보고 그 레벨이 올해 범위 어디쯤인지 바로 읽는 자(ruler). 값과 범위만 표시하며 판단·시그널은 없다.</p>
 
-  <div id="cs1-status" class="loading">데이터 로드 중 (data/cs1/spreads.json · 3.1MB)</div>
+  <div id="cs1-status" class="loading">데이터 로드 중 (data/cs1/spreads.json)</div>
 
   <div id="cs1-app" style="display:none">
     <div class="series-bar">
@@ -141,7 +141,6 @@
     <div class="note">
       데이터는 composite xlsx 의 <code>yield</code> 시트(민평 3사평균 원수익률)에서 스프레드를 직접 계산한 것이다
       (Excel 파생 <code>spread</code> 시트는 쓰지 않는다). 국고 당일 레벨은 표시하지 않는다 — 절대금리는 보는 사람이 감안한다.<br>
-      산금채AAA·중금채AAA 는 별개 행이지만, 최근 250영업일 기준 3년 이하 전 만기에서 두 값의 차이가 0.0bp 다(차이는 4년 이상에서만 난다).<br>
       갱신: <code>node tools/build-cs1.mjs</code> (소스 xlsx 를 레포 루트에 둔 뒤).
     </div>
   </div>
