@@ -49,9 +49,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── 자(ruler) 표 ──
-     숫자는 전부 무채색이다. 확대/축소를 색으로 칠하지 않는다 — 이 화면은 측정만 하고
-     좋다/나쁘다를 말하지 않는다. 유일한 색은 범위 바의 현위치 마커(--accent)뿐이며,
-     그것도 '어디쯤인가'를 가리킬 뿐 판정이 아니다. */
+     숫자는 전부 무채색이다. 기본 화면에 색이라곤 범위 바의 마커(--accent) 한 점뿐이고,
+     그것도 '어디쯤인가'를 가리킬 뿐 판정이 아니다.
+     히트맵(기본 off)을 켜면 셀 배경에 색이 깔리는데, 그 색은 YTD 범위 내 위치의 연속
+     표현일 뿐 좋다/나쁘다·가치 판정을 말하지 않는다. 임계값·이산 밴드·판정 라벨 금지 —
+     선을 하나라도 그으면 그 선을 넘었다는 사실이 곧 판정으로 읽힌다. */
   .tbl-wrap { overflow-x: auto; }
   table.cs1 { border-collapse: collapse; width: 100%; font-family: var(--mono); }
   table.cs1 thead th { position: sticky; top: 0; z-index: 2; background: var(--panel);
@@ -78,13 +80,21 @@
   table.cs1 td .z { font-size: 10px; color: var(--muted); line-height: 1.35; }
   table.cs1 td.nil { color: var(--border-2); text-align: center; }
 
-  /* 미니 범위 바 — 트랙은 YTD min–max, 마커는 현위치 한 점.
+  /* 미니 범위 바 — 트랙은 YTD min–max, 마커는 현재값 한 점.
      구간을 색으로 나누지 않는다(밴드=판정이 되어버린다). */
   table.cs1 td .bar { position: relative; height: 6px; margin: 5px 0 4px;
     background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 3px; }
   table.cs1 td .bar i { position: absolute; top: -2px; width: 2px; height: 8px;
     background: var(--accent); border-radius: 1px; transform: translateX(-1px); }
   table.cs1 td .bar.empty { opacity: 0.35; }
+
+  /* 히트맵 범례 — 셀 배경과 같은 색·같은 최대 농도를 그대로 쓴다(범례가 실제보다 진하면 거짓말이 된다).
+     눈금도 구분선도 넣지 않는다 — 연속이라는 사실 자체가 표시다. */
+  .legend { display: flex; align-items: center; gap: 9px; }
+  .legend .lg-bar { flex: none; width: 140px; height: 9px; border-radius: 3px;
+    border: 1px solid var(--border-2);
+    background: linear-gradient(to right,
+      rgba(56,178,172,0.22), rgba(56,178,172,0) 50%, rgba(217,144,42,0) 50%, rgba(217,144,42,0.22)); }
 
   #cs1-rest { width: 100%; margin-top: 12px; background: var(--panel); border: 1px solid var(--border-2);
     color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 9px 12px;
@@ -121,6 +131,13 @@
           <button data-tenor="all">전체 11만기</button>
         </div>
       </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">히트맵</span>
+        <div class="seg" id="cs1-heat">
+          <button data-heat="off">끄기</button>
+          <button data-heat="on">켜기</button>
+        </div>
+      </div>
     </div>
 
     <div class="card">
@@ -131,9 +148,16 @@
         </table>
       </div>
       <button id="cs1-rest" type="button" aria-expanded="false">그 외 펼치기</button>
+      <div class="note legend" id="cs1-legend" style="display:none">
+        <span class="lg-bar"></span>
+        <span>색 = YTD 범위 내 위치 · 청록(타이트측) ◀ 무색(중앙) ▶ 호박(와이드측) · 섹터 간 행은 미적용 · 판단·시그널 아님</span>
+      </div>
       <div class="note">
-        셀 = 현재값(bp) / 전일 Δ / YTD 범위 바(막대 = 올해 min–max, 눈금 = 현위치) / YTD min–max / 250영업일 min–max / z250.<br>
-        전부 국고 동일만기 대비 bp이며, 섹터 간 행은 두 섹터의 수익률 차다. 셀에 마우스를 올리면 표본 일수까지 나온다.<br>
+        셀 = 현재값(bp) / 전일 Δ / YTD 범위 바(막대 = 올해 min–max, 눈금 = 현재값) / YTD min–max / 250영업일 min–max / z250.<br>
+        전부 국고 동일만기 대비 bp이며, 섹터 간 행은 두 섹터의 수익률 차다. 셀에 마우스를 올리면
+        YTD 범위 내 방향(타이트측/와이드측, 섹터 간 행은 축소측/확대측)과 고점·저점까지의 bp 거리, 표본 일수가 나온다.<br>
+        히트맵은 기본 off다. 켜면 vs-국고 행의 셀 배경이 YTD 범위 내 위치를 따라 연속으로 물든다(구간·임계값 없음).
+        섹터 간 행은 두 크레딧의 차라 타이트/와이드가 성립하지 않아 색을 칠하지 않는다.<br>
         z250 = 최근 250영업일 표본 대비 표준화(유효 관측 120일 미만이거나 σ=0이면 —). 결측은 채우지 않고 비워 둔다.
       </div>
     </div>

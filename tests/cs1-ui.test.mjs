@@ -4,11 +4,16 @@
 // 그게 틀리면 화면 전체가 조용히 거짓말을 한다(숫자는 맞는데 눈으로 읽는 위치가 틀린다).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import {
   Z_MIN_PERIODS, Z_WINDOW,
   cellStats, lastValidIndex, markerPct, rangeOf, ytdStartIndex, zAt,
 } from '../js/cs1/cs1-stats.js';
-import { buildRows } from '../js/cs1/cs1-ui.js';
+import { MAX_TINT_ALPHA, buildRows, cellHTML, heatColor } from '../js/cs1/cs1-ui.js';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // ── 범위 바 위치 산술 ─────────────────────────────────────────────────────────
 
@@ -189,4 +194,166 @@ test('행 구성 — 하이픈이 든 섹터명(회사채AA-)이 잘리지 않�
   const rows = buildRows({ ...META, seriesOrder: ['회사채AA-_vs_국고채권', '회사채AA-_vs_은행채AAA'] });
   assert.equal(rows.rest[0].label, '회사채AA-');
   assert.equal(rows.cross[0].label, '회사채AA- − 은행채AAA');
+});
+
+// ── 히트맵 틴트 ──────────────────────────────────────────────────────────────
+//
+// 여기서 지키는 것은 색의 예쁨이 아니라 "판정이 아니다"라는 약속이다. 알파가 위치의
+// 연속 함수여야 하고(임계값 없음), 최대 농도가 --muted 텍스트를 못 죽이는 선에서 멈춰야 한다.
+
+const rgbOf = (css) => css.slice(css.indexOf('(') + 1, css.lastIndexOf(','));
+const alphaOf = (css) => Number(css.slice(css.lastIndexOf(',') + 1, -1));
+const TEAL = '56, 178, 172';
+const AMBER = '217, 144, 42';
+
+test('heatColor — 중앙 50% 는 무색', () => {
+  assert.equal(alphaOf(heatColor(50)), 0, '중앙에서는 배경을 칠하지 않는다');
+});
+
+test('heatColor — 양 끝이 최대 농도이고 그 값이 MAX_TINT_ALPHA 다', () => {
+  assert.equal(alphaOf(heatColor(0)), MAX_TINT_ALPHA);
+  assert.equal(alphaOf(heatColor(100)), MAX_TINT_ALPHA);
+  assert.equal(MAX_TINT_ALPHA, 0.22, '이 상한을 올리면 --muted 보조 숫자와 범위 바가 배경에 먹힌다');
+});
+
+test('heatColor — 타이트측은 청록, 와이드측은 호박', () => {
+  assert.equal(rgbOf(heatColor(0)), TEAL);
+  assert.equal(rgbOf(heatColor(25)), TEAL);
+  assert.equal(rgbOf(heatColor(75)), AMBER);
+  assert.equal(rgbOf(heatColor(100)), AMBER);
+});
+
+test('heatColor — 농도는 중앙에서의 거리에 선형으로 비례한다', () => {
+  assert.equal(alphaOf(heatColor(25)), MAX_TINT_ALPHA / 2);
+  assert.equal(alphaOf(heatColor(75)), MAX_TINT_ALPHA / 2);
+  assert.equal(alphaOf(heatColor(25)), alphaOf(heatColor(75)), '양쪽이 대칭이라야 한 방향이 강조되지 않는다');
+});
+
+test('heatColor — 임계값이 없다(어느 지점에서도 색이 튀지 않는다)', () => {
+  // 이산 밴드가 들어오면 이웃한 두 위치 사이에서 알파가 계단처럼 벌어진다.
+  let prev = alphaOf(heatColor(50));
+  for (let p = 50.5; p <= 100; p += 0.5) {
+    const a = alphaOf(heatColor(p));
+    assert.ok(a >= prev, `단조 증가 위반: ${p}%`);
+    assert.ok(a - prev < 0.01, `${p}% 에서 계단이 생겼다 (${prev}${a}) — 밴드 도입 의심`);
+    prev = a;
+  }
+});
+
+test('heatColor — 위치가 없으면 색도 없다', () => {
+  assert.equal(heatColor(null), null);
+  assert.equal(heatColor(undefined), null);
+  assert.equal(heatColor(NaN), null);
+  assert.equal(heatColor('50'), null);
+});
+
+// ── 셀 HTML ──────────────────────────────────────────────────────────────────
+
+/** 산금채AAA 1년 2026-08-24 실측에 가까운 셀. ytdPct 69.2 = (26.8−2.3)/(37.7−2.3). */
+const CELL = {
+  value: 26.8, delta: 0.8,
+  ytd: { min: 2.3, max: 37.7, n: 157 }, ytdPct: 69.2,
+  win: { min: 2.3, max: 37.7, n: 250 }, z: 0.51, asofIdx: 2867,
+};
+
+test('셀 — 히트맵이 꺼져 있으면 배경을 칠하지 않는다', () => {
+  const html = cellHTML(CELL, { heatmap: false, isCross: false });
+  assert.ok(!html.includes('style="background'), '기본 화면은 무채색이다');
+  assert.ok(!html.includes('background:rgba'));
+});
+
+test('셀 — opts 를 아예 안 줘도 배경이 생기지 않는다', () => {
+  assert.ok(!cellHTML(CELL).includes('style="background'));
+});
+
+test('셀 — 히트맵 on + vs-국고 행이면 배경 틴트가 붙는다', () => {
+  const html = cellHTML(CELL, { heatmap: true, isCross: false });
+  assert.ok(html.includes(`style="background:${heatColor(69.2)}"`), html.slice(0, 160));
+  assert.ok(html.includes('rgba(217, 144, 42'), '와이드측이므로 호박');
+});
+
+test('셀 — 히트맵 on 이어도 섹터 간 행은 무색으로 남는다', () => {
+  const html = cellHTML(CELL, { heatmap: true, isCross: true });
+  assert.ok(!html.includes('style="background'), '두 크레딧의 차에는 타이트/와이드가 성립하지 않는다');
+});
+
+test('셀 — YTD 위치가 없으면 히트맵 on 이어도 칠하지 않는다', () => {
+  const s = { ...CELL, ytdPct: null, ytd: { min: null, max: null, n: 0 } };
+  const html = cellHTML(s, { heatmap: true, isCross: false });
+  assert.ok(!html.includes('style="background'));
+  assert.ok(html.includes('bar empty'), '범위 바도 빈 상태로 남는다');
+});
+
+test('셀 — 관측이 없으면 히트맵 on 이어도 빈 칸이다', () => {
+  const html = cellHTML({ ...CELL, value: null }, { heatmap: true, isCross: false });
+  assert.equal(html, '<td class="nil" title="관측 없음">—</td>');
+});
+
+// ── 툴팁 용어 ────────────────────────────────────────────────────────────────
+
+const tipOf = (html) => html.slice(html.indexOf('title="') + 7, html.indexOf('"', html.indexOf('title="') + 7));
+
+test('툴팁 — "현위치 N%" 표기가 사라졌다', () => {
+  for (const opts of [{ isCross: false }, { isCross: true }]) {
+    assert.ok(!cellHTML(CELL, opts).includes('현위치'), '방향어 + bp 거리로 대체됐다');
+  }
+});
+
+test('툴팁 — vs-국고 행은 타이트측/와이드측으로 읽는다', () => {
+  assert.ok(tipOf(cellHTML(CELL, { isCross: false })).includes('와이드측 69%'));
+  assert.ok(tipOf(cellHTML({ ...CELL, ytdPct: 30 }, { isCross: false })).includes('타이트측 70%'),
+    'pct 30 은 타이트 끝에 70% 만큼 가 있다');
+});
+
+test('툴팁 — 섹터 간 행은 축소측/확대측으로 읽는다', () => {
+  assert.ok(tipOf(cellHTML(CELL, { isCross: true })).includes('확대측 69%'));
+  assert.ok(tipOf(cellHTML({ ...CELL, ytdPct: 30 }, { isCross: true })).includes('축소측 70%'));
+  const tip = tipOf(cellHTML(CELL, { isCross: true }));
+  assert.ok(!tip.includes('와이드') && !tip.includes('타이트'), '크레딧 해석어를 섞지 않는다');
+});
+
+test('툴팁 — 정확히 50% 는 와이드측/확대측 0 쪽이 아니라 50% 로 나온다', () => {
+  assert.ok(tipOf(cellHTML({ ...CELL, ytdPct: 50 }, {})).includes('와이드측 50%'));
+});
+
+test('툴팁 — 고점·저점까지의 bp 거리가 소수 1자리로 나온다', () => {
+  const tip = tipOf(cellHTML(CELL, { isCross: false }));
+  assert.ok(tip.includes('고점까지 10.9bp'), tip);   // 37.7 − 26.8, 부동소수 잔여 없이
+  assert.ok(tip.includes('저점까지 24.5bp'), tip);   // 26.8 − 2.3
+});
+
+test('툴팁 — 표본 일수와 250일 구간·z250 은 그대로 남는다', () => {
+  const tip = tipOf(cellHTML(CELL, { isCross: false }));
+  assert.ok(tip.includes('YTD 2–38 (157일)'), tip);
+  assert.ok(tip.includes('250일 2–38 (250일)'), tip);
+  assert.ok(tip.includes('z250 0.51'), tip);
+});
+
+test('툴팁 — YTD 범위가 없으면 방향어도 bp 거리도 붙이지 않는다', () => {
+  const tip = tipOf(cellHTML({ ...CELL, ytdPct: null, ytd: { min: null, max: null, n: 0 } }, {}));
+  assert.ok(!tip.includes('측 '), tip);
+  assert.ok(!tip.includes('고점까지'), tip);
+});
+
+// ── 판단어 금지 ──────────────────────────────────────────────────────────────
+//
+// 이 화면의 규약은 "측정만 하고 판정하지 않는다"인데, 지금까지 그 규약은 주석으로만
+// 살아 있었다. 히트맵이 들어오면서 색이 판정으로 읽힐 여지가 생겼으므로 규약을 실행 가능한
+// 검사로 내린다. 코드·주석·각주·범례 전부가 대상이다(주석에 쓴 말도 다음 사람이 읽는다).
+
+const BANNED = ['싸다', '비싸다', 'cheap', 'rich', '매력적', '저평가', '고평가', '매수', '매도'];
+
+test('판단어 금지 — cs1 소스 어디에도 가치 판정어가 없다', () => {
+  const files = readdirSync(join(ROOT, 'js', 'cs1')).filter((f) => f.endsWith('.js'))
+    .map((f) => `js/cs1/${f}`).concat('cs1.html');
+  assert.ok(files.length >= 4, `대상 ${files.length}개 — 경로 규칙이 조용히 빈 것 아닌지 확인`);
+
+  const hits = [];
+  for (const rel of files) {
+    const lines = readFileSync(join(ROOT, rel), 'utf8').split(/\r?\n/);
+    lines.forEach((line, i) => {
+      for (const w of BANNED) if (line.includes(w)) hits.push(`${rel}:${i + 1} "${w}" — ${line.trim().slice(0, 90)}`);
+    });
+  }
+  assert.deepEqual(hits, [], '판단어 검출:\n' + hits.join('\n'));
 });
