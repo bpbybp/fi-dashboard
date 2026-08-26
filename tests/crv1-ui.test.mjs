@@ -4,13 +4,16 @@
 // 여기서 고정하는 것은 **표시 규약**이다 — 값이 없는 이유가 화면에서 사라지지 않는가,
 // 정렬이 값과 일치하는가, 토글이 실제로 재계산을 태우는가, 표본이 모자란 사실이 드러나는가.
 // 계산 자체는 tests/crv1-calc.test.mjs 가 고정한다. 이 파일은 산식을 다시 검증하지 않는다.
+//
+// [노드 비의존] 합성 커브는 노드 키로 짓고 행 수도 TRIPLES/PAIRS 에서 끌어온다.
+//   노드 목록이 바뀌어도 이 파일이 통째로 깨지지 않게 하려는 것이다.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-import { NODES, WINDOW } from '../js/crv1/crv1-calc.js';
+import { NODES, PAIRS, TRIPLES, WINDOW } from '../js/crv1/crv1-calc.js';
 import {
   DEFAULT_BASIS, NEUTRAL_BASES,
   barHTML, buildView, flagLabel, pairLabel, renderTables, slopeRowHTML, sortSlopes,
@@ -18,18 +21,30 @@ import {
 } from '../js/crv1/crv1-ui.js';
 
 const GRID = [...NODES];
-const row = (d, vals) => [d, ...vals];
-const REAL = [3.418, 3.690, 3.826, 4.033, 4.318, 4.575, 4.629, 4.589]; // 2026-08-25
+const row = (d, v) => [d, ...v];
+const vals = (m) => NODES.map((n) => (n in m ? m[n] : null));
 const byKey = (arr, k) => arr.find((it) => it.key === k);
 /** 한 행(tr) HTML 안의 <td> 내용만 순서대로 뽑는다. */
 const tds = (html) => [...html.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) => m[1]);
 
+// 2026-08-25 실제 커브.
+const REAL = {
+  0.5: 3.086, 1: 3.418, 1.5: 3.551, 2: 3.690, 2.5: 3.727, 3: 3.826,
+  5: 4.033, 10: 4.318, 20: 4.575, 30: 4.629, 50: 4.589,
+};
+const REALV = vals(REAL);
+const realView = (basis) => buildView({ grid: GRID, rows: [row('2026-08-25', REALV)] }, basis);
+
 // ── 1. tight → "—" 렌더 + neutral 은 유지 ────────────────────────────────────
 test('tight 행 — 비중·갭·레인지바는 "—", 중립은 표시 유지', () => {
-  //                 1     2      3     5     10    20    30    50
-  const vals = [3.00, 3.005, 3.01, 3.02, 3.04, 3.10, 3.20, 3.30]; // 3/5/10 이 3bp
-  const view = buildView({ grid: GRID, rows: [row('2026-08-25', vals)] });
-  const it = byKey(view.weights, '3-5-10');
+  const view = buildView({
+    grid: GRID,
+    rows: [row('2026-08-25', vals({
+      0.5: 3.00, 1: 3.005, 1.5: 3.01, 2: 3.02, 2.5: 3.03, 3: 3.04,
+      5: 3.10, 10: 3.20, 20: 3.30, 30: 3.40, 50: 3.50,
+    }))],
+  });
+  const it = byKey(view.weights, '1.5-2-2.5'); // 3.03 − 3.01 = 2bp
   assert.equal(it.flag, 'tight');
 
   const cells = tds(weightRowHTML(it));
@@ -45,16 +60,38 @@ test('tight 행 — 비중·갭·레인지바는 "—", 중립은 표시 유지'
   assert.match(cells[4], /역전\/압축/, '사유 라벨');
 });
 
-test('tight 행 — 라벨 어휘가 flag 별로 고정', () => {
+test('단기 tight — 0.5~1.5 가 3bp 여도 인근 단기 행은 정상 렌더된다', () => {
+  const view = buildView({
+    grid: GRID,
+    rows: [row('2026-08-25', vals({
+      0.5: 3.000, 1: 3.015, 1.5: 3.030, 2: 3.200, 2.5: 3.400, 3: 3.600,
+      5: 3.800, 10: 4.000, 20: 4.200, 30: 4.400, 50: 4.600,
+    }))],
+  });
+  const html = renderTables(view).weights;
+  assert.equal((html.match(/역전\/압축/g) || []).length, 1, 'tight 라벨은 한 행뿐');
+
+  const dead = tds(weightRowHTML(byKey(view.weights, '0.5-1-1.5')));
+  assert.match(dead[0], /class="nil">—</);
+  assert.doesNotMatch(dead[1], /—/, '중립은 남는다');
+
+  for (const k of ['1-1.5-2', '1.5-2-2.5', '2-2.5-3']) {
+    const c = tds(weightRowHTML(byKey(view.weights, k)));
+    assert.doesNotMatch(c[0], /class="nil"/, `${k} 비중`);
+    assert.match(c[3], /<div class="rb"/, `${k} 레인지바`);
+    assert.equal(c[4], '', `${k} 사유 라벨 없음`);
+  }
+});
+
+test('flag 라벨 어휘가 flag 별로 고정', () => {
   assert.equal(flagLabel('tight'), '역전/압축');
   assert.equal(flagLabel('missing'), '결측');
   assert.equal(flagLabel('degenerate'), '퇴화');
   assert.equal(flagLabel(null), '');
 });
 
-test('missing 행 — 50Y 결측이면 결측 라벨, 나머지 5행은 정상 렌더', () => {
-  const vals = [...REAL.slice(0, 7), null];
-  const view = buildView({ grid: GRID, rows: [row('2016-05-02', vals)] });
+test('missing 행 — 50Y 결측이면 결측 라벨, 나머지 8행은 정상 렌더', () => {
+  const view = buildView({ grid: GRID, rows: [row('2016-05-02', vals({ ...REAL, 50: null }))] });
   const dead = tds(weightRowHTML(byKey(view.weights, '20-30-50')));
   assert.match(dead[4], /결측/);
   assert.match(dead[0], /class="nil">—</);
@@ -62,7 +99,9 @@ test('missing 행 — 50Y 결측이면 결측 라벨, 나머지 5행은 정상 �
   // (자리표시 래퍼 없이 곧바로 — 로 찍힌다. 화면에 보이는 글자는 tight 행과 같다.)
   assert.equal(dead[1], '—', '중립도 결측(입력이 없으면 듀레이션도 없다)');
 
-  for (const it of view.weights.filter((w) => w.key !== '20-30-50')) {
+  const alive = view.weights.filter((w) => w.key !== '20-30-50');
+  assert.equal(alive.length, TRIPLES.length - 1);
+  for (const it of alive) {
     const c = tds(weightRowHTML(it));
     assert.doesNotMatch(c[0], /class="nil"/, `${it.key} 비중`);
     assert.match(c[3], /<div class="rb"/, `${it.key} 레인지바`);
@@ -90,19 +129,27 @@ test('기울기 정렬 — 원본 배열을 변형하지 않고, null 끼리는 
   assert.deepEqual(out.map((x) => x.key), ['y', 'x', 'z'], 'null 끼리는 안정');
 });
 
-test('실데이터 형상 — buildView 의 기울기가 내림차순이고 상단 표는 만기 오름차순 고정', () => {
-  const view = buildView({ grid: GRID, rows: [row('2026-08-25', REAL)] });
-  const vals = view.slopes.map((x) => x.slope).filter((v) => v != null);
-  for (let i = 1; i < vals.length; i++) assert.ok(vals[i - 1] >= vals[i], `${vals[i - 1]} < ${vals[i]}`);
+test('실데이터 형상 — 기울기는 내림차순, 상단 표는 만기 오름차순 고정', () => {
+  const view = realView();
+  const v = view.slopes.map((x) => x.slope).filter((s) => s != null);
+  for (let i = 1; i < v.length; i++) assert.ok(v[i - 1] >= v[i], `${v[i - 1]} < ${v[i]}`);
   assert.deepEqual(view.weights.map((w) => w.key),
-    ['1-2-3', '2-3-5', '3-5-10', '5-10-20', '10-20-30', '20-30-50'], '상단은 정렬하지 않는다');
+    TRIPLES.map(([s, m, l]) => `${s}-${m}-${l}`), '상단은 정렬하지 않는다');
+});
+
+test('정렬 — 단기가 장기와 섞여도 값 순서만 따른다 (구간 길이로 묶지 않는다)', () => {
+  const view = realView();
+  const keys = view.slopes.map((x) => x.key);
+  // 실커브에서 2-2.5(8.13)는 3-5(12.33)보다 아래로 내려간다 — 단기라고 위에 붙지 않는다.
+  assert.ok(keys.indexOf('3-5') < keys.indexOf('2-2.5'),
+    `단기 2-2.5 가 값과 무관하게 앞에 옴: ${keys.join(' > ')}`);
+  assert.equal(keys[keys.length - 1], '30-50', '유일한 음수가 최하단');
 });
 
 // ── 3. 토글 전환 시 neutral·gap 재계산 반영 ─────────────────────────────────
 test('중립 기준 토글 — duration ↔ time 에서 neutral·gap 이 바뀌고 비중은 그대로', () => {
-  const curve = { grid: GRID, rows: [row('2026-08-25', REAL)] };
-  const d = buildView(curve, 'duration');
-  const t = buildView(curve, 'time');
+  const d = realView('duration');
+  const t = realView('time');
 
   const dw = byKey(d.weights, '3-5-10');
   const tw = byKey(t.weights, '3-5-10');
@@ -118,19 +165,26 @@ test('중립 기준 토글 — duration ↔ time 에서 neutral·gap 이 바뀌�
 });
 
 test('중립 기준 토글 — 렌더된 HTML 에도 바뀐 값이 실린다', () => {
-  const curve = { grid: GRID, rows: [row('2026-08-25', REAL)] };
-  const hd = renderTables(buildView(curve, 'duration')).weights;
-  const ht = renderTables(buildView(curve, 'time')).weights;
+  const hd = renderTables(realView('duration')).weights;
+  const ht = renderTables(realView('time')).weights;
   assert.notEqual(hd, ht, '토글이 표를 실제로 다시 그린다');
   assert.match(ht, /28\.57/, '시간 중립 3/5/10 값이 표에 있다');
   assert.doesNotMatch(hd, /28\.57/);
 
   // 250일 창 통계도 기준에 따라 다시 계산된다(갭 창이므로).
   const rows = Array.from({ length: 30 }, (_, i) =>
-    row(`d${i}`, REAL.map((v, j) => v + i * 0.002 * (j + 1))));
+    row(`d${i}`, REALV.map((v, j) => v + i * 0.002 * (j + 1))));
   const rd = byKey(buildView({ grid: GRID, rows }, 'duration').weights, '5-10-20').range;
   const rt = byKey(buildView({ grid: GRID, rows }, 'time').weights, '5-10-20').range;
   assert.notDeepEqual(rd, rt, '창 min/max 도 기준을 따라간다');
+});
+
+test('중립 기준 토글 — 0.5 가 낀 단기 조합도 기준을 따라 바뀐다', () => {
+  const dw = byKey(realView('duration').weights, '0.5-1-1.5');
+  const tw = byKey(realView('time').weights, '0.5-1-1.5');
+  assert.ok(Math.abs(tw.neutral - 50) < 0.01, `등간격이라 시간 중립은 50 (${tw.neutral})`);
+  assert.notEqual(dw.neutral, tw.neutral);
+  assert.notEqual(dw.gap, tw.gap);
 });
 
 test('중립 기준 — 기본은 듀레이션, 토글 어휘는 2종 고정', () => {
@@ -141,7 +195,7 @@ test('중립 기준 — 기본은 듀레이션, 토글 어휘는 2종 고정', (
 
 // ── 4. 250행 미만이면 window 가 화면에 표기 ─────────────────────────────────
 test('250행 미만 — windowLabel 에 실제 행수(n=226)가 찍히고 부족 사실을 밝힌다', () => {
-  const rows = Array.from({ length: 226 }, (_, i) => row(`d${i}`, REAL.map((v) => v + i * 0.001)));
+  const rows = Array.from({ length: 226 }, (_, i) => row(`d${i}`, REALV.map((v) => v + i * 0.001)));
   const view = buildView({ grid: GRID, rows });
   assert.equal(view.window, 226);
   const label = windowLabel(view);
@@ -151,18 +205,17 @@ test('250행 미만 — windowLabel 에 실제 행수(n=226)가 찍히고 부족
 });
 
 test('250행 이상 — windowLabel 은 n=250 만 찍고 군더더기를 붙이지 않는다', () => {
-  const rows = Array.from({ length: 400 }, (_, i) => row(`d${i}`, REAL.map((v) => v + i * 0.001)));
+  const rows = Array.from({ length: 400 }, (_, i) => row(`d${i}`, REALV.map((v) => v + i * 0.001)));
   const view = buildView({ grid: GRID, rows });
   assert.equal(view.window, WINDOW);
-  assert.equal(windowLabel(view), 'n=250'.replace('n=', '창 n='));
+  assert.equal(windowLabel(view), '창 n=250');
   assert.doesNotMatch(windowLabel(view), /미만/);
 });
 
 test('행별 표본수도 레인지바에 함께 찍힌다 (창 안 결측 노출)', () => {
   const rows = Array.from({ length: 12 }, (_, i) =>
-    row(`d${i}`, [...REAL.slice(0, 7), i < 4 ? null : 4.95 + i * 0.01]));
-  const view = buildView({ grid: GRID, rows });
-  const html = renderTables(view).weights;
+    row(`d${i}`, vals({ ...REAL, 50: i < 4 ? null : 4.95 + i * 0.01 })));
+  const html = renderTables(buildView({ grid: GRID, rows })).weights;
   assert.match(html, /n=8/, '20/30/50 은 앞 4일 결측이라 표본 8');
   assert.match(html, /n=12/, '결측 없는 조합은 표본 12');
 });
@@ -193,24 +246,27 @@ test('레인지바 — pos 없으면 마커 없는 흐린 트랙, 범위 자체�
 });
 
 // ── 표기·구조 ───────────────────────────────────────────────────────────────
-test('행 라벨 — 3점은 "/" 로 묶고 2점 구간은 "–" 로 잇는다', () => {
+test('행 라벨 — 3점은 "/" 로 묶고 2점 구간은 "–" 로 잇는다 (0.5 도 그대로)', () => {
   assert.equal(tripleLabel({ s: 3, m: 5, l: 10 }), '3/5/10Y');
+  assert.equal(tripleLabel({ s: 0.5, m: 1, l: 1.5 }), '0.5/1/1.5Y');
   assert.equal(pairLabel({ s: 30, l: 50 }), '30–50Y');
+  assert.equal(pairLabel({ s: 0.5, l: 1 }), '0.5–1Y');
 });
 
 test('갭·기울기는 부호를 명시한다 (+/−)', () => {
-  const view = buildView({ grid: GRID, rows: [row('2026-08-25', REAL)] });
-  const pos = tds(weightRowHTML(byKey(view.weights, '1-2-3')));
+  const view = realView();
+  const pos = tds(weightRowHTML(byKey(view.weights, '0.5-1-1.5')));
   assert.match(pos[2], /^\+\d/, '양수 갭엔 + 를 붙인다');
   const neg = tds(slopeRowHTML(byKey(view.slopes, '30-50')));
   assert.match(neg[0], /^-\d/, '음수 기울기는 - 로 읽힌다');
 });
 
-test('renderTables — 상단 6행·하단 7행, 판단 어휘·화살표가 섞이지 않는다', () => {
-  const view = buildView({ grid: GRID, rows: [row('2026-08-25', REAL)] });
-  const t = renderTables(view);
-  assert.equal((t.weights.match(/<tr/g) || []).length, 6);
-  assert.equal((t.slopes.match(/<tr/g) || []).length, 7);
+test('renderTables — 상단 9행·하단 10행, 판단 어휘·화살표가 섞이지 않는다', () => {
+  const t = renderTables(realView());
+  assert.equal((t.weights.match(/<tr/g) || []).length, 9);
+  assert.equal((t.slopes.match(/<tr/g) || []).length, 10);
+  assert.equal((t.weights.match(/<tr/g) || []).length, TRIPLES.length);
+  assert.equal((t.slopes.match(/<tr/g) || []).length, PAIRS.length);
   for (const bad of ['싸', '비싸', '매수', '매도', '↑', '↓', '→', '주목', '추천']) {
     assert.ok(!t.weights.includes(bad) && !t.slopes.includes(bad), `판단 어휘 '${bad}' 노출`);
   }

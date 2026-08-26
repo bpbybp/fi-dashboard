@@ -15,7 +15,7 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
   body { padding: 12px 22px 20px; line-height: 1.5; }
-  .wrap { max-width: 1040px; margin: 0 auto; }
+  .wrap { max-width: 1360px; margin: 0 auto; }
 
   .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
   .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: #08111f; }
@@ -41,8 +41,15 @@
 
   .foot1 { font-size: 11px; color: var(--muted); margin: 0 0 9px; }
 
+  /* 노드가 0.5년 단위로 늘면서 상단 9행·하단 10행이 되어 세로로 쌓으면 한 화면을 넘는다.
+     데스크톱에서는 좌우 2단으로 두어 높이를 max(9행, 10행) 으로 눌러 놓는다.
+     좁은 화면(태블릿·모바일)에서는 1단으로 접히고 세로 스크롤을 허용한다. */
+  /* 좌 6열·우 4열이라 1:1 로 나누면 좌측 레인지바만 짓눌려 위치가 안 읽힌다.
+     열 수에 맞춰 좌측을 넓혀 두 패널의 막대 길이를 비슷하게 맞춘다. */
+  .panels { display: grid; grid-template-columns: 1.35fr 1fr; gap: 10px; align-items: start; }
+  @media (max-width: 1180px) { .panels { grid-template-columns: 1fr; } }
+
   .card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 8px 13px 9px; }
-  .card + .card { margin-top: 9px; }
   .card h2 { font-size: 13px; font-weight: 650; margin: 0 0 1px; }
   .card .sub { font-size: 11px; color: var(--muted); margin: 0 0 3px; }
   .note { font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
@@ -56,13 +63,13 @@
   table.crv1 { border-collapse: collapse; width: 100%; font-family: var(--mono); }
   table.crv1 thead th { color: var(--muted); font-weight: 600; font-size: 10.5px; text-align: right;
     padding: 4px 10px; border-bottom: 1px solid var(--border-2); white-space: nowrap; }
-  table.crv1 thead th.corner { text-align: left; width: 84px; }
-  table.crv1 thead th.num { width: 96px; }
+  table.crv1 thead th.corner { text-align: left; width: 78px; }
+  table.crv1 thead th.num { width: 68px; }
   table.crv1 thead th.pos { text-align: left; }
-  table.crv1 thead th.flag { width: 64px; text-align: left; }
+  table.crv1 thead th.flag { width: 58px; text-align: left; }
   table.crv1 tbody th { text-align: left; font-weight: 600; font-size: 12.5px; white-space: nowrap;
-    padding: 4px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
-  table.crv1 td { padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: right;
+    padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+  table.crv1 td { padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: right;
     white-space: nowrap; font-size: 12.5px; }
   table.crv1 tbody tr:last-child th,
   table.crv1 tbody tr:last-child td { border-bottom: none; }
@@ -78,13 +85,13 @@
     background: var(--panel-2); border: 1px solid var(--border-2); white-space: nowrap; }
 
   /* 미니 범위 바 — 트랙은 창 min–max, 마커는 현재값 한 점. 구간을 색으로 나누지 않는다. */
-  .rb { display: flex; align-items: center; gap: 8px; }
-  .rb .e { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums;
-    width: 46px; text-align: right; }
+  .rb { display: flex; align-items: center; gap: 6px; }
+  .rb .e { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums;
+    width: 42px; text-align: right; }
   .rb .e:last-of-type { text-align: left; }
-  .rb .n { font-size: 9.5px; color: var(--muted); opacity: 0.75; font-variant-numeric: tabular-nums; width: 42px; }
+  .rb .n { font-size: 9.5px; color: var(--muted); opacity: 0.75; font-variant-numeric: tabular-nums; width: 36px; }
   .rb.none { color: var(--border-2); }
-  .rb .bar { position: relative; flex: 1; min-width: 110px; height: 6px;
+  .rb .bar { position: relative; flex: 1; min-width: 90px; height: 6px;
     background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 3px; }
   /* 마커는 트랙보다 위아래로 넉넉히 튀어나오게 둔다 — 6px 트랙 안에 가두면 눈이 못 잡는다. */
   .rb .bar i { position: absolute; top: -4px; width: 3px; height: 14px;
@@ -123,9 +130,10 @@
     </div>
     <p class="foot1">액면채 가정 수정듀레이션 (반기복리). 초장기 구간은 이표-금리 괴리 시 오차 가능.</p>
 
+    <div class="panels">
     <div class="card">
       <h2>구간별 비중</h2>
-      <p class="sub">인접 3점. 중간 만기가 양끝 사이 어디에 놓였는가 — 만기 오름차순 고정.</p>
+      <p class="sub">인접 3점 9조합. 중간 만기가 양끝 사이 어디에 놓였는가 — 만기 오름차순 고정.</p>
       <div class="tbl-wrap">
         <table class="crv1">
           <thead><tr>
@@ -140,14 +148,14 @@
         </table>
       </div>
       <div class="note">
-        비중 = (y<sub>중</sub> − y<sub>단</sub>) ÷ (y<sub>장</sub> − y<sub>단</sub>) · 갭 = 비중 − 중립 · 막대 = 창 min–max, 눈금 = 현재 갭.
-        양끝 금리차가 5bp 미만이면 비중이 발산하므로 산출하지 않고 <span class="fl">역전/압축</span> 로 표기한다(중립은 금리를 쓰지 않아 그대로 남는다).
+        비중 = (y<sub>중</sub> − y<sub>단</sub>) ÷ (y<sub>장</sub> − y<sub>단</sub>) · 갭 = 비중 − 중립 · 막대 = 창 min–max, 눈금 = 현재 갭.<br>
+        양끝 금리차가 5bp 미만이면 비중이 발산하므로 산출하지 않고 <span class="fl">역전/압축</span> 로 표기한다. 임계는 단기·장기 구분 없이 5bp 단일이며, 중립은 금리를 쓰지 않아 그대로 남는다.
       </div>
     </div>
 
     <div class="card">
       <h2>듀레이션당 기울기</h2>
-      <p class="sub">인접 2점. 듀레이션 1년을 더 지는 대가로 받는 금리(bp) — 값 내림차순.</p>
+      <p class="sub">인접 2점 10조합. 듀레이션 1년을 더 지는 대가로 받는 금리(bp) — 값 내림차순.</p>
       <div class="tbl-wrap">
         <table class="crv1">
           <thead><tr>
@@ -160,9 +168,10 @@
         </table>
       </div>
       <div class="note">
-        기울기 = (y<sub>장</sub> − y<sub>단</sub>) × 100 ÷ (D<sub>장</sub> − D<sub>단</sub>). 만기 간격이 아니라 듀레이션 간격으로 나누므로 구간 길이가 달라도 같은 단위로 비교된다.
-        데이터는 시가평가 3사평균 국고채권(Infomax) 커브를 그대로 쓴다 — 갱신은 <code>_local/curve-data.xlsx</code> 저장 후 <code>update-data.bat</code>. 결측은 채우지 않고 비워 둔다.
+        기울기 = (y<sub>장</sub> − y<sub>단</sub>) × 100 ÷ (D<sub>장</sub> − D<sub>단</sub>). 만기 간격이 아니라 듀레이션 간격으로 나누므로 구간 길이가 달라도 같은 단위로 비교된다 — 정렬은 값만 따르며 단기·장기를 묶지 않는다.<br>
+        데이터는 시가평가 3사평균 국고채권(Infomax). 갱신은 <code>_local/curve-data.xlsx</code> 저장 후 <code>update-data.bat</code>. 결측은 채우지 않고 비워 둔다.
       </div>
+    </div>
     </div>
   </div>
 </div>
