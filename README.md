@@ -18,6 +18,7 @@ Actions 주간 fetch → JSON 커밋 → 클라이언트 렌더 · 다크 테마
 | 연간 GDP 환산기 (GA-1) | gdp-annual.html | (입력형·순수 산술) |
 | Curve Phase (CP) | curve-phase.html | ECOS + FRED |
 | **Global Curve Compare (GC)** | curve-phase.html 内 섹션 | FRED + MOF + ECOS |
+| 커브 구간 RV (CRV-1) | crv1.html | 시가평가 3사평균 국고채권 (`data/ktb-curve.js`) |
 | Curve RV / US Credit Spread / RV 스크리너 / On·Off / 캐리 / 레짐 | 각 *.html | FRED·ECOS·클라이언트 |
 
 ---

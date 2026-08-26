@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CRV 국고 커브 구간 상대가치 | FI Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 12px 22px 20px; line-height: 1.5; }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 5px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: #08111f; }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  h1 { font-size: 21px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 2px; }
+  .tagline { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
+
+  .series-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding: 7px 13px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 9px; margin-bottom: 9px; font-size: 12px; }
+  .series-bar .sname { font-size: 13px; font-weight: 600; }
+  .series-bar .asof { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); }
+  .series-bar .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border-2); color: var(--muted); }
+  .series-bar .meta { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 5px; align-items: center; }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden; }
+  .seg button { background: transparent; border: none; color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 5px 13px; cursor: pointer; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: #08111f; font-weight: 600; }
+  .seg button:hover:not(.active) { background: var(--panel-2); color: var(--text); }
+
+  .foot1 { font-size: 11px; color: var(--muted); margin: 0 0 9px; }
+
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 8px 13px 9px; }
+  .card + .card { margin-top: 9px; }
+  .card h2 { font-size: 13px; font-weight: 650; margin: 0 0 1px; }
+  .card .sub { font-size: 11px; color: var(--muted); margin: 0 0 3px; }
+  .note { font-size: 10.5px; color: var(--muted); margin-top: 6px; line-height: 1.6; }
+  .empty { color: var(--muted); font-size: 13px; padding: 24px; text-align: center; line-height: 1.7;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 9px; }
+
+  /* ── 자(ruler) 표 ──
+     숫자는 전부 무채색이다. 화면 전체에서 색이라곤 범위 바의 마커(--accent) 한 점뿐이고,
+     그것도 '창 안 어디쯤인가'를 가리킬 뿐 판정이 아니다. 임계값·이산 밴드·판정 라벨 금지. */
+  .tbl-wrap { overflow-x: auto; }
+  table.crv1 { border-collapse: collapse; width: 100%; font-family: var(--mono); }
+  table.crv1 thead th { color: var(--muted); font-weight: 600; font-size: 10.5px; text-align: right;
+    padding: 4px 10px; border-bottom: 1px solid var(--border-2); white-space: nowrap; }
+  table.crv1 thead th.corner { text-align: left; width: 84px; }
+  table.crv1 thead th.num { width: 96px; }
+  table.crv1 thead th.pos { text-align: left; }
+  table.crv1 thead th.flag { width: 64px; text-align: left; }
+  table.crv1 tbody th { text-align: left; font-weight: 600; font-size: 12.5px; white-space: nowrap;
+    padding: 4px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
+  table.crv1 td { padding: 4px 10px; border-bottom: 1px solid var(--border); text-align: right;
+    white-space: nowrap; font-size: 12.5px; }
+  table.crv1 tbody tr:last-child th,
+  table.crv1 tbody tr:last-child td { border-bottom: none; }
+  table.crv1 td.num { font-variant-numeric: tabular-nums; }
+  table.crv1 td.pos { text-align: left; }
+  table.crv1 td.flag { text-align: left; }
+
+  /* 값이 없는 행은 배경을 바꾸지 않고 글자만 죽인다 — 행을 강조하면 그게 신호로 읽힌다.
+     시선이 걸리지 않게 자리표시(—)와 사유 라벨만 흐리게 남긴다. */
+  table.crv1 tr.dead th { color: var(--muted); font-weight: 500; }
+  table.crv1 .nil { color: var(--border-2); }
+  table.crv1 .fl { font-size: 10px; color: var(--muted); padding: 1px 5px; border-radius: 4px;
+    background: var(--panel-2); border: 1px solid var(--border-2); white-space: nowrap; }
+
+  /* 미니 범위 바 — 트랙은 창 min–max, 마커는 현재값 한 점. 구간을 색으로 나누지 않는다. */
+  .rb { display: flex; align-items: center; gap: 8px; }
+  .rb .e { font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums;
+    width: 46px; text-align: right; }
+  .rb .e:last-of-type { text-align: left; }
+  .rb .n { font-size: 9.5px; color: var(--muted); opacity: 0.75; font-variant-numeric: tabular-nums; width: 42px; }
+  .rb.none { color: var(--border-2); }
+  .rb .bar { position: relative; flex: 1; min-width: 110px; height: 6px;
+    background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 3px; }
+  /* 마커는 트랙보다 위아래로 넉넉히 튀어나오게 둔다 — 6px 트랙 안에 가두면 눈이 못 잡는다. */
+  .rb .bar i { position: absolute; top: -4px; width: 3px; height: 14px;
+    background: var(--accent); border-radius: 1px; transform: translateX(-1.5px);
+    box-shadow: 0 0 0 1px rgba(13, 17, 23, 0.9); }
+  .rb .bar.empty { opacity: 0.35; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">
+    <span class="step">CRV</span>
+    <span class="ctx">국고 커브 구간 상대가치 · 시가평가 3사평균 · 1·2·3·5·10·20·30·50Y</span>
+  </div>
+  <h1>국고 커브 구간 상대가치</h1>
+  <p class="tagline">구간별 비중이 중립에서 얼마나 떨어져 있고, 그 괴리가 최근 250영업일 범위 어디쯤인지 읽는 자(ruler). 값과 범위만 표시하며 판단·시그널은 없다.</p>
+
+  <div id="crv1-status" class="empty">데이터 로드 중 (data/ktb-curve.js)</div>
+
+  <div id="crv1-app" style="display:none">
+    <div class="series-bar">
+      <span class="sname">기준일</span>
+      <span class="asof" id="crv1-asof">—</span>
+      <span class="tag">data/ktb-curve.js</span>
+      <span class="meta" id="crv1-window">—</span>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group">
+        <span class="ctrl-label">중립 기준</span>
+        <div class="seg" id="crv1-basis">
+          <button type="button" data-basis="duration">듀레이션</button>
+          <button type="button" data-basis="time">시간</button>
+        </div>
+      </div>
+    </div>
+    <p class="foot1">액면채 가정 수정듀레이션 (반기복리). 초장기 구간은 이표-금리 괴리 시 오차 가능.</p>
+
+    <div class="card">
+      <h2>구간별 비중</h2>
+      <p class="sub">인접 3점. 중간 만기가 양끝 사이 어디에 놓였는가 — 만기 오름차순 고정.</p>
+      <div class="tbl-wrap">
+        <table class="crv1">
+          <thead><tr>
+            <th class="corner">구간</th>
+            <th class="num">비중 (%)</th>
+            <th class="num" id="crv1-neutral-col">중립 (%)</th>
+            <th class="num">갭 (%p)</th>
+            <th class="pos">250일 위치 (갭 기준)</th>
+            <th class="flag"></th>
+          </tr></thead>
+          <tbody id="crv1-wbody"></tbody>
+        </table>
+      </div>
+      <div class="note">
+        비중 = (y<sub>중</sub> − y<sub>단</sub>) ÷ (y<sub>장</sub> − y<sub>단</sub>) · 갭 = 비중 − 중립 · 막대 = 창 min–max, 눈금 = 현재 갭.
+        양끝 금리차가 5bp 미만이면 비중이 발산하므로 산출하지 않고 <span class="fl">역전/압축</span> 로 표기한다(중립은 금리를 쓰지 않아 그대로 남는다).
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>듀레이션당 기울기</h2>
+      <p class="sub">인접 2점. 듀레이션 1년을 더 지는 대가로 받는 금리(bp) — 값 내림차순.</p>
+      <div class="tbl-wrap">
+        <table class="crv1">
+          <thead><tr>
+            <th class="corner">구간</th>
+            <th class="num">bp/dur</th>
+            <th class="pos">250일 위치</th>
+            <th class="flag"></th>
+          </tr></thead>
+          <tbody id="crv1-sbody"></tbody>
+        </table>
+      </div>
+      <div class="note">
+        기울기 = (y<sub>장</sub> − y<sub>단</sub>) × 100 ÷ (D<sub>장</sub> − D<sub>단</sub>). 만기 간격이 아니라 듀레이션 간격으로 나누므로 구간 길이가 달라도 같은 단위로 비교된다.
+        데이터는 시가평가 3사평균 국고채권(Infomax) 커브를 그대로 쓴다 — 갱신은 <code>_local/curve-data.xlsx</code> 저장 후 <code>update-data.bat</code>. 결측은 채우지 않고 비워 둔다.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 공통 내비게이션 -->
+<script type="module" src="js/nav.js"></script>
+<!-- data (classic script — window.KTB_CURVE 자기등록) -->
+<script src="data/ktb-curve.js"></script>
+<!-- app (ES module) -->
+<script type="module">
+  import { initCrv1 } from './js/crv1/crv1-ui.js';
+  initCrv1();
+</script>
+</body>
+</html>
