@@ -53,7 +53,7 @@ function scanControlBytes(relPath) {
 
 test('검사 대상이 실제로 잡힌다 (경로 규칙이 조용히 비지 않게)', () => {
   assert.ok(FILES.length >= 20, `대상 ${FILES.length}개 — 너무 적다. collect() 규칙 확인`);
-  for (const must of ['js/rv2-ui.js', 'js/rv2-parser.js', 'js/rv2-buckets.js', 'rv2-quote-rank.html']) {
+  for (const must of ['js/rv2-ui.js', 'js/rv2-parser.js', 'js/rv2-buckets.js', 'rv2-quote-rank.html', 'js/st1-parser.js']) {
     assert.ok(FILES.includes(must), `대상 누락: ${must}`);
   }
 });
