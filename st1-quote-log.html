@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ST-1 단기물 호가 기록 — CP·예담 원장</title>
+<!-- 테마 선적용(FOUC 방지). ST-1 은 RV-2 와 같이 **라이트가 기본**이다.
+     js/st1-ui.js 의 LS_THEME 과 같은 키·같은 봉투를 읽는다. -->
+<script>try{var s=JSON.parse(localStorage.getItem('st1-theme')||'null');document.documentElement.dataset.cpTheme=(s&&s.kind==='st1-theme'&&s.version===1&&s.theme==='dark')?'dark':'light';}catch(e){document.documentElement.dataset.cpTheme='light';}</script>
+<style>
+  /* 토큰 세트는 rv2-quote-rank.html 과 동일 값. */
+  :root {
+    --bg: #faf9f6; --panel: #ffffff; --panel-2: #f4f1ea;
+    --border: #e7e2d8; --border-2: #d6cfc1;
+    --text: #26231d; --muted: #837b6d;
+    --accent: #ffbc00; --accent-ink: #8a6b00;
+    --accent-contrast: #26231d; /* 노랑 위 검정 = KB 시그니처 조합 */
+    --red: #c9453a; --ok: #2f8f4e; --amber: #d98e04;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  [data-cp-theme='dark'] {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; --accent-ink: #58a6ff;
+    --accent-contrast: #08111f;
+    --red: #f85149; --ok: #3fb950; --amber: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 28px 22px 80px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: var(--accent-contrast); }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  .eyebrow .right { margin-left: auto; display: flex; gap: 8px; }
+  .btn { font-size: 12px; line-height: 1.5; color: var(--muted); background: transparent; border: 1px solid var(--border-2);
+    border-radius: 6px; padding: 4px 9px; cursor: pointer; font-family: var(--sans); }
+  .btn:hover { color: var(--text); border-color: var(--accent-ink); }
+  .btn-primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: 700; }
+  .btn-x { padding: 2px 7px; font-size: 11px; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn:disabled:hover { color: var(--muted); border-color: var(--border-2); }
+
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 3px; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+  .sec-title { font-size: 13px; font-weight: 700; margin: 22px 0 8px; display: flex; align-items: baseline; gap: 8px; }
+  .sec-title .cap { font-size: 11px; font-weight: 400; color: var(--muted); }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 11px; padding: 16px 18px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .hint { font-size: 11.5px; color: var(--muted); }
+
+  input[type=text], input[type=date], select {
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2);
+    border-radius: 8px; padding: 7px 10px; font-family: var(--sans); font-size: 12.5px; }
+  input:focus, select:focus { outline: none; border-color: var(--accent-ink); }
+  #st1-line { width: 100%; font-family: var(--mono); font-size: 13.5px; padding: 10px 12px; }
+
+  /* 프리뷰 — 6개 필드. 비어 있으면 회색 처리(판단 색상 아님, "아직 안 채워졌다" 표시). */
+  .preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 12px; }
+  .pv { display: flex; flex-direction: column; gap: 3px; }
+  .pv label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .pv input { width: 100%; font-family: var(--mono); }
+  .pv input.is-empty { background: transparent; border-style: dashed; color: var(--muted); }
+
+  .notice { font-size: 12px; color: var(--muted); font-family: var(--mono); min-height: 18px; margin-top: 10px; }
+  .notice.warn { color: var(--amber); }
+
+  .ledger-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .ledger-head .status { font-size: 12.5px; font-family: var(--mono); font-weight: 700; }
+  .ledger-head .hint .mono { font-family: var(--mono); }
+  /* 확정분(파일에 이미 있는 행) — 회색으로 구분만 한다. 판단 색상이 아니다. */
+  table.q tr.is-committed td { color: var(--muted); }
+  table.q tr.is-committed td.raw { opacity: 0.75; }
+
+  .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .filters .fl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .filters .count { margin-left: auto; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  table.q { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.q th { text-align: left; font-weight: 700; font-size: 10.5px; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.03em; border-bottom: 1px solid var(--border-2); padding: 6px 8px; white-space: nowrap; }
+  table.q td { border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+  table.q td.num, table.q th.num { text-align: right; font-family: var(--mono); }
+  table.q td.mono { font-family: var(--mono); }
+  table.q td.raw { font-family: var(--mono); color: var(--muted); font-size: 11px;
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  table.q td .na { color: var(--muted); opacity: 0.6; }
+  table.q tbody tr:hover { background: var(--panel-2); }
+  .table-scroll { overflow-x: auto; }
+  .empty { font-size: 12.5px; color: var(--muted); padding: 12px 0; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <script type="module" src="js/nav.js"></script>
+
+  <div class="eyebrow">
+    <span class="step">ST-1</span>
+    <span class="ctx">단기물 호가 원장 · 직접 입력 · 클라이언트 온리(브라우저 밖으로 나가지 않음)</span>
+    <span class="right">
+      <button class="btn" id="st1-theme" type="button" title="라이트/다크 전환">🌙 다크</button>
+    </span>
+  </div>
+
+  <h1>단기물 호가 기록</h1>
+  <p class="tagline">
+    CP·예담·전단채·ABSTB 호가를 한 줄씩 타이핑해 원장에 쌓는다.
+    파싱은 <b>입력 보조</b>일 뿐이라 틀리면 프리뷰에서 바로 고치면 되고, <b>기록되는 것은 화면에 보이는 값</b>이다.
+    측정·판단은 하지 않는다.
+  </p>
+
+  <!-- ── 입력부 ───────────────────────────────────────────────────────── -->
+  <div class="sec-title">입력 <span class="cap">Enter 로 기록 · 기록 후 입력칸은 비워지고 포커스는 남는다</span></div>
+  <div class="panel">
+    <div class="row" style="margin-bottom: 10px;">
+      <span class="hint">일자</span>
+      <input type="date" id="st1-date" title="과거 호가를 나중에 입력할 때 바꾼다">
+    </div>
+    <input type="text" id="st1-line" autocomplete="off" spellcheck="false"
+      placeholder="예) 아이엠증권 A1 CP 27년 3월 만기 3.70%">
+  </div>
+
+  <!-- ── 프리뷰부 ─────────────────────────────────────────────────────── -->
+  <div class="sec-title">프리뷰 <span class="cap">직접 고칠 수 있다 · 고친 필드는 재파싱이 덮지 않는다</span></div>
+  <div class="panel">
+    <div class="preview">
+      <div class="pv"><label for="st1-f-issuer">발행사</label>
+        <input type="text" id="st1-f-issuer" list="st1-issuer-list" autocomplete="off" spellcheck="false"></div>
+      <div class="pv"><label for="st1-f-kind">종류</label>
+        <input type="text" id="st1-f-kind" list="st1-f-kind-list" autocomplete="off"></div>
+      <div class="pv"><label for="st1-f-grade">등급</label>
+        <input type="text" id="st1-f-grade" list="st1-f-grade-list" autocomplete="off"></div>
+      <div class="pv"><label for="st1-f-maturity">만기</label>
+        <input type="text" id="st1-f-maturity" autocomplete="off" placeholder="2027-03 · 26.11.20"></div>
+      <div class="pv"><label for="st1-f-rate">금리 %</label>
+        <input type="text" id="st1-f-rate" autocomplete="off"></div>
+      <div class="pv"><label for="st1-f-amount">금액 억</label>
+        <input type="text" id="st1-f-amount" autocomplete="off"></div>
+    </div>
+    <datalist id="st1-issuer-list"></datalist>
+    <datalist id="st1-f-kind-list"></datalist>
+    <datalist id="st1-f-grade-list"></datalist>
+
+    <div class="row" style="margin-top: 12px;">
+      <button class="btn btn-primary" id="st1-record" type="button">기록 (Enter)</button>
+      <button class="btn" id="st1-reset-preview" type="button">입력 비우기</button>
+      <span class="hint">기록은 브라우저에 남는다 — 내보내기 전까지 이 PC 밖으로 나가지 않는다.</span>
+    </div>
+    <div class="notice" id="st1-notice"></div>
+  </div>
+
+  <!-- ── 원장 테이블 ──────────────────────────────────────────────────── -->
+  <div class="sec-title">원장 <span class="cap">최신이 위 · 잔존개월은 표시할 때 계산한다(저장하지 않음)</span></div>
+  <div class="panel">
+    <div class="ledger-head">
+      <span class="status" id="st1-status">기록 0건 (확정 0 / 미내보내기 0)</span>
+      <button class="btn" id="st1-export" type="button" disabled
+        title="미내보내기분만 JSON 으로 받는다. 확정분은 이미 파일에 있다.">미내보내기 내보내기</button>
+      <span class="hint">받은 파일은 <span class="mono">_local/st1/</span> 에 두고 <span class="mono">tools/st1-merge.mjs</span> 로 병합한다.</span>
+    </div>
+    <div class="filters">
+      <span class="fl-label">필터</span>
+      <input type="text" id="st1-fl-issuer" placeholder="발행사" autocomplete="off">
+      <select id="st1-fl-kind"></select>
+      <select id="st1-fl-grade"></select>
+      <span class="count" id="st1-count">0건</span>
+    </div>
+    <div class="table-scroll">
+      <table class="q">
+        <thead><tr>
+          <th>일자</th><th>발행사</th><th>종류</th><th>등급</th><th>만기</th>
+          <th class="num">잔존</th><th class="num">금리</th><th class="num">금액</th>
+          <th>원문</th><th class="num"></th>
+        </tr></thead>
+        <tbody id="st1-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initSt1 } from './js/st1-ui.js';
+  initSt1();
+</script>
+</body>
+</html>
