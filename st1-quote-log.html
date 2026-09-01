@@ -92,6 +92,41 @@
   table.q tbody tr:hover { background: var(--panel-2); }
   .table-scroll { overflow-x: auto; }
   .empty { font-size: 12.5px; color: var(--muted); padding: 12px 0; text-align: center; }
+
+  /* ── 커브 차트 ──────────────────────────────────────────────────────────
+     점 밝기는 **경과 시간**을 뜻한다(0주 밝음 → 4주 이상 어두움). 그래서 단색의 명도만
+     바꾼다 — 적/녹 색상환을 쓰면 사람은 그것을 매수·매도 신호로 읽고, 이 모듈은
+     판단을 하지 않는다. 적합선만 accent 계열로 빼 데이터(점)와 모델(선)을 구분한다. */
+  .chart-ctl { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px;
+    padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .chart-ctl .fl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+  .series-toggles { display: flex; gap: 11px; flex-wrap: wrap; }
+  .series-toggles .tg { font-size: 12px; color: var(--muted); display: inline-flex; align-items: center;
+    gap: 4px; cursor: pointer; user-select: none; }
+  .series-toggles .tg input { accent-color: var(--accent-ink); margin: 0; }
+
+  .chart-area { position: relative; }
+  .chart-block + .chart-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .chart-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
+  .chart-head .cname { font-size: 12.5px; font-weight: 700; }
+  .chart-head .cmeta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+
+  svg.st1-chart { display: block; width: 100%; height: auto; color: var(--text); }
+  svg.st1-chart .grid { stroke: var(--border); stroke-width: 1; }
+  svg.st1-chart .axis-line { stroke: var(--border-2); stroke-width: 1; }
+  svg.st1-chart .ax { fill: var(--muted); font-family: var(--mono); font-size: 10px; }
+  svg.st1-chart .ax.lab { font-family: var(--sans); font-size: 10px; }
+  svg.st1-chart .dot { fill: currentColor; cursor: pointer; }
+  svg.st1-chart .pending { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-dasharray: 3 2; }
+  svg.st1-chart .fit { color: var(--accent-ink); }
+  svg.st1-chart .fit .band { fill: currentColor; fill-opacity: 0.1; stroke: none; }
+  svg.st1-chart .fit .line { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-opacity: 0.85; }
+
+  .st1-tip { position: absolute; z-index: 5; pointer-events: none; white-space: pre-line;
+    background: var(--panel-2); border: 1px solid var(--border-2); border-radius: 7px; padding: 6px 9px;
+    font-family: var(--mono); font-size: 11px; line-height: 1.45; color: var(--text);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18); }
+  .resid { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 </style>
 </head>
 <body>
@@ -148,9 +183,39 @@
     <div class="row" style="margin-top: 12px;">
       <button class="btn btn-primary" id="st1-record" type="button">기록 (Enter)</button>
       <button class="btn" id="st1-reset-preview" type="button">입력 비우기</button>
+      <!-- 입력 중인 값의 잔차. 숫자만 낸다. 긴 안내문 뒤로 밀면 타이핑 중에 눈에 안 들어온다. -->
+      <span class="resid" id="st1-resid"></span>
       <span class="hint">기록은 브라우저에 남는다 — 내보내기 전까지 이 PC 밖으로 나가지 않는다.</span>
     </div>
     <div class="notice" id="st1-notice"></div>
+  </div>
+
+  <!-- ── 커브 ─────────────────────────────────────────────────────────────
+       계보별 적합선(r = a + b·ln τ)과 각 점의 잔차. 측정만 한다. -->
+  <div class="sec-title">커브
+    <span class="cap">x = 기록 시점 잔존일수 · y = 금리 · 점 밝기 = 경과 주수 · 원장 필터와 무관</span></div>
+  <div class="panel">
+    <div class="chart-ctl">
+      <span class="fl-label">표시 기간</span>
+      <select id="st1-cv-weeks" title="이보다 오래된 기록은 적합에서 뺀다">
+        <option value="4">4주</option>
+        <option value="8">8주</option>
+        <option value="all">전체</option>
+      </select>
+      <span class="fl-label">반감기</span>
+      <select id="st1-cv-half" title="오래된 점의 가중치가 절반이 되는 주기">
+        <option value="1">1주</option>
+        <option value="2">2주</option>
+        <option value="4">4주</option>
+        <option value="none">가중없음</option>
+      </select>
+      <span class="fl-label">계보</span>
+      <span class="series-toggles" id="st1-cv-series"></span>
+    </div>
+    <div class="chart-area" id="st1-chart-area">
+      <div id="st1-charts"></div>
+      <div class="st1-tip" id="st1-tip" hidden></div>
+    </div>
   </div>
 
   <!-- ── 원장 테이블 ──────────────────────────────────────────────────── -->

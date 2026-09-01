@@ -20,7 +20,19 @@
 //   필요 없다 — 한도는 조용한 유실을 만들고, 그건 "기록"이 목적인 모듈에서 최악이다.
 //   같은 이유로 **저장 실패는 조용히 넘기지 않는다.** 화면에 경고를 띄운다.
 //
-//   차트·스프레드·색상 시그널·판단 텍스트는 영구 범위 밖이다.
+// ── 커브 차트 (Phase 5) ─────────────────────────────────────────────────
+//   계보별 적합선과 잔차 bp 를 그린다. 적합 산수는 전부 `js/st1-curve.js` 에 있고
+//   여기서는 **좌표를 픽셀로 옮기는 일만** 한다.
+//
+//   ⚠️ 화면에 나가는 것은 **숫자와 좌표뿐**이다. 싸다·비싸다·저평가·타이트 같은 판단은
+//   어떤 형태로도 쓰지 않고, 색으로 매수·매도를 암시하지도 않는다. 점 밝기는 오직
+//   **경과 시간**을 뜻하며 그래서 단색의 명도만 바꾼다 — 적/녹 색상환을 쓰면 사람은
+//   그것을 신호로 읽고, 그 순간 이 모듈은 기록 도구가 아니라 추천 도구가 된다.
+//
+//   차트는 원장 필터(발행사·종류·등급)와 **무관하다**. 필터는 표를 좁히는 도구고,
+//   차트는 자기 컨트롤(기간·반감기·계보 토글)을 따로 갖는다.
+//
+//   범위 밖: CD·KOFR 대비 스프레드(외부 데이터 의존이 생긴다) · 알림 · 임계값.
 //
 // ── 구조 ────────────────────────────────────────────────────────────────
 //   DOM 접근은 initSt1() 이하에만 둔다. 순수 로직은 export 해 DOM 없이 테스트한다
@@ -29,6 +41,10 @@
 import {
   parseQuoteLine, normalizeIssuer, dedupeKey, mergeRows, todayLocal,
 } from './st1-parser.js';
+import {
+  buildSeries, residualBp, residualDays, seriesKey,
+  SERIES_ORDER, MIN_FIT_POINTS, DEFAULT_MAX_WEEKS, DEFAULT_HALF_LIFE_WEEKS,
+} from './st1-curve.js';
 
 // ── 상수 ─────────────────────────────────────────────────────────────────
 
@@ -54,6 +70,8 @@ export const COMMITTED_URL = 'data/st1/quotes.json';
 export const LS_BUFFER = 'st1-buffer';
 /** 테마(세션 데이터와 분리 — 봉투 규약은 같다). */
 export const LS_THEME = 'st1-theme';
+/** ③ 차트 컨트롤 상태. 기록이 아니라 **보기 설정**이라 유실돼도 무해하다(테마와 같은 급). */
+export const LS_VIEW = 'st1-view';
 export const ENVELOPE_VERSION = 1;
 export const EXPORT_KIND = 'st1-export';
 
@@ -89,6 +107,52 @@ export function exportFilename(date = todayLocal()) {
 /** quotes.json 의 rows. 형식이 어긋나면 빈 배열(첫 배포 시점의 404 와 같은 취급). */
 export function readCommitted(json) {
   return json && Array.isArray(json.rows) ? json.rows : [];
+}
+
+// ── 차트 보기 설정 (Phase 5) ─────────────────────────────────────────────
+
+/** 표시 기간 선택지(주). null = 전체 기간. */
+export const VIEW_WEEKS = [4, 8, null];
+/** 반감기 선택지(주). null = 가중없음. */
+export const VIEW_HALF_LIVES = [1, 2, 4, null];
+
+/** 기본 보기 — 8주 창 · 반감기 2주 · 계보 전부 표시. */
+export const DEFAULT_VIEW = () => ({
+  maxWeeks: DEFAULT_MAX_WEEKS, halfLifeWeeks: DEFAULT_HALF_LIFE_WEEKS, hidden: [],
+});
+
+/**
+ * 저장된 보기 설정 읽기. 봉투 규약은 버퍼·테마와 같다(kind·version 이 다르면 무시).
+ *
+ * 값은 **선택지 안에 있는지까지** 확인한다. 저장된 뒤 선택지가 바뀌면 select 에 없는
+ * 값이 남아 컨트롤이 빈 채로 뜨고, 사용자는 무엇이 적용됐는지 알 수 없게 된다.
+ */
+export function readView(raw) {
+  const d = DEFAULT_VIEW();
+  try {
+    const s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!s || s.kind !== LS_VIEW || s.version !== ENVELOPE_VERSION || !s.view) return d;
+    const v = s.view;
+    return {
+      maxWeeks: VIEW_WEEKS.includes(v.maxWeeks) ? v.maxWeeks : d.maxWeeks,
+      halfLifeWeeks: VIEW_HALF_LIVES.includes(v.halfLifeWeeks) ? v.halfLifeWeeks : d.halfLifeWeeks,
+      hidden: Array.isArray(v.hidden) ? v.hidden.filter((k) => SERIES_ORDER.includes(k)) : d.hidden,
+    };
+  } catch { return d; }
+}
+
+/** 보기 설정 봉투. */
+export function viewEnvelope(view) {
+  const v = view || DEFAULT_VIEW();
+  return {
+    kind: LS_VIEW,
+    version: ENVELOPE_VERSION,
+    view: {
+      maxWeeks: v.maxWeeks ?? null,
+      halfLifeWeeks: v.halfLifeWeeks ?? null,
+      hidden: Array.isArray(v.hidden) ? [...v.hidden] : [],
+    },
+  };
 }
 
 // ── 순수 로직 (DOM 없음 · 테스트 대상) ───────────────────────────────────
@@ -260,6 +324,10 @@ let BUFFER = [];
 let COMMITTED_KEYS = new Set();
 let PREVIEW = EMPTY_PREVIEW();
 let DIRTY = {};
+/** 차트 컨트롤 상태. */
+let VIEW = DEFAULT_VIEW();
+/** 마지막 렌더의 계보별 { points, fit }. 프리뷰 잔차가 차트와 같은 적합을 쓰게 하는 캐시다. */
+let CURVES = {};
 
 /** 화면 원장 = ① + ②. 중복 판정도 이 합집합 기준이다. */
 const allRows = () => mergeRows(COMMITTED, BUFFER).rows;
@@ -296,6 +364,7 @@ export async function initSt1() {
       PREVIEW[k] = el.value;
       paintEmptyState();
       if (k === 'issuer') refreshIssuerList(el.value);
+      renderChart(); // 미확정 마커·잔차는 필드를 고칠 때마다 따라와야 한다
     });
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); record(); } });
   }
@@ -323,6 +392,7 @@ export async function initSt1() {
   fillFilterSelect($('st1-fl-kind'), KINDS, '종류 전체');
   fillFilterSelect($('st1-fl-grade'), GRADES, '등급 전체');
 
+  initChartControls(); // paintPreview·renderLedger 가 renderChart 를 부르므로 그보다 먼저다
   applyStoredTheme();
   paintPreview();
   renderLedger();
@@ -364,6 +434,7 @@ function paintPreview() {
   for (const k of PREVIEW_FIELDS) $(`st1-f-${k}`).value = PREVIEW[k] ?? '';
   paintEmptyState();
   refreshIssuerList(PREVIEW.issuer);
+  renderChart();
 }
 
 function notify(msg, tone = '') {
@@ -445,6 +516,10 @@ function renderLedger() {
     `기록 ${rows.length}건 (확정 ${COMMITTED.length} / 미내보내기 ${BUFFER.length})`;
   $('st1-export').disabled = BUFFER.length === 0;
 
+  // 차트는 표 필터를 따르지 않지만 **원장 자체가 바뀌면** 다시 그려야 한다.
+  // 아래 빈 원장 조기반환보다 먼저 부른다 — 표가 비어도 차트는 그려질 수 있다(필터 때문에).
+  renderChart();
+
   const body = $('st1-tbody');
   if (!filtered.length) {
     body.innerHTML = `<tr><td colspan="10" class="empty">${rows.length ? '필터에 걸리는 행이 없습니다.' : '아직 기록이 없습니다.'}</td></tr>`;
@@ -482,6 +557,278 @@ function renderLedger() {
       renderLedger();
     });
   }
+}
+
+// ── 커브 차트 (Phase 5) ──────────────────────────────────────────────────
+//
+// SVG 를 문자열로 짓는다. 외부 차트 라이브러리는 쓰지 않는다 — no-build 레포라
+// 번들러가 없고, 산점도 하나에 의존성을 들이면 페이지가 CDN 사정에 묶인다.
+
+/** 좌표계는 viewBox 로 고정하고 CSS 로 폭을 늘린다. 반응형이 공짜로 따라온다. */
+const SVG_W = 900;
+const SVG_H = 250;
+const PLOT = { x0: 56, x1: SVG_W - 18, y0: 16, y1: SVG_H - 34 };
+/** 적합선·밴드를 몇 조각으로 끊어 그릴지. ln 곡선이라 직선 조각으로도 48개면 매끈하다. */
+const FIT_SAMPLES = 48;
+
+/**
+ * 경과 주수 → 점 불투명도. 0주 최대 → 4주 이상 최저 고정, 등간격.
+ *
+ * ⚠️ 여기서 색상(hue)을 건드리면 안 된다. 밝기는 **시간**을 뜻하는데 적/녹을 쓰는 순간
+ * 사람은 그것을 매수·매도로 읽는다. 단색 명도만 바꾼다.
+ */
+const AGE_ALPHA = [1, 0.82, 0.64, 0.46, 0.28];
+const alphaForAge = (age) => AGE_ALPHA[Math.min(AGE_ALPHA.length - 1, Math.max(0, Math.floor(Number(age) || 0)))];
+
+/** 잔차 표기 — 부호를 항상 붙인다. 숫자만 낸다(판단어 없음). */
+const fmtBp = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}bp`;
+const n1 = (v) => Number(v).toFixed(1);
+
+/** 선형 스케일. 도메인 폭이 0이면(점이 한 자리에 겹치면) 화면 가운데로 접는다. */
+function scale(lo, hi, a, b) {
+  const span = hi - lo;
+  if (!(span > 0)) return () => (a + b) / 2;
+  return (v) => a + ((v - lo) / span) * (b - a);
+}
+
+/** 1·2·5·10 배수 눈금. 축 라벨이 3.4732 처럼 나오면 읽히지 않는다. */
+function niceTicks(lo, hi, want = 5) {
+  if (!(hi > lo)) return [lo];
+  const raw = (hi - lo) / want;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const k = raw / mag;
+  const step = (k < 1.5 ? 1 : k < 3 ? 2 : k < 7 ? 5 : 10) * mag;
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(v);
+  return out;
+}
+
+/** 툴팁 한 줄 묶음. 속성값에 개행을 넣지 않으려고 `|` 로 잇고 표시할 때 되돌린다. */
+function tipText(row, fit) {
+  const bp = residualBp(row, fit);
+  return [
+    row.date ?? '—',
+    row.issuer || row.issuer_raw || '—',
+    row.maturity_date || row.maturity_ym || '—',
+    row.rate == null ? '—' : `${Number(row.rate).toFixed(2)}%`,
+    bp == null ? '잔차 —' : `잔차 ${fmtBp(bp)}`,
+  ].join('|');
+}
+
+/** 계보 한 개의 SVG. 점이 MIN_FIT_POINTS 이상일 때만 호출된다. */
+function chartSvg(key, series, pending) {
+  const { points, fit } = series;
+
+  // x 도메인 — 잔존일수. 프리뷰 마커가 화면 밖으로 나가지 않게 함께 넣는다.
+  const taus = points.map((p) => p.tau);
+  if (pending) taus.push(pending.tau);
+  let xLo = Math.min(...taus);
+  let xHi = Math.max(...taus);
+  const xPad = Math.max(5, (xHi - xLo) * 0.08);
+  xLo = Math.max(1, xLo - xPad); // ln 정의역 밖으로 나가지 않는다
+  xHi += xPad;
+
+  // y 도메인 — 점 + 밴드 상하단. 밴드를 빼면 ±1σ 가 잘려 나간다.
+  const ys = points.map((p) => p.rate);
+  if (pending) ys.push(pending.rate);
+  const band = [];
+  if (fit.ok) {
+    for (let i = 0; i <= FIT_SAMPLES; i++) {
+      const t = xLo + ((xHi - xLo) * i) / FIT_SAMPLES;
+      const m = fit.predict(t);
+      if (m == null) continue;
+      band.push([t, m, m + fit.sigma, m - fit.sigma]);
+      ys.push(m + fit.sigma, m - fit.sigma);
+    }
+  }
+  let yLo = Math.min(...ys);
+  let yHi = Math.max(...ys);
+  const yPad = Math.max(0.02, (yHi - yLo) * 0.12);
+  yLo -= yPad; yHi += yPad;
+
+  const sx = scale(xLo, xHi, PLOT.x0, PLOT.x1);
+  const sy = scale(yLo, yHi, PLOT.y1, PLOT.y0); // 화면 y 는 아래가 크다
+
+  const xt = niceTicks(xLo, xHi, 5).filter((v) => v >= xLo && v <= xHi);
+  const yt = niceTicks(yLo, yHi, 4).filter((v) => v >= yLo && v <= yHi);
+
+  const grid = [
+    ...yt.map((v) => `<line class="grid" x1="${PLOT.x0}" y1="${n1(sy(v))}" x2="${PLOT.x1}" y2="${n1(sy(v))}"/>`),
+    ...xt.map((v) => `<line class="grid" x1="${n1(sx(v))}" y1="${PLOT.y0}" x2="${n1(sx(v))}" y2="${PLOT.y1}"/>`),
+  ].join('');
+
+  const axis = [
+    ...yt.map((v) => `<text class="ax" x="${PLOT.x0 - 8}" y="${n1(sy(v) + 3.5)}" text-anchor="end">${v.toFixed(2)}</text>`),
+    ...xt.map((v) => `<text class="ax" x="${n1(sx(v))}" y="${PLOT.y1 + 16}" text-anchor="middle">${Math.round(v)}</text>`),
+    `<text class="ax lab" x="${PLOT.x1}" y="${PLOT.y1 + 29}" text-anchor="end">잔존일수 (기록 시점)</text>`,
+    `<text class="ax lab" x="${PLOT.x0 - 8}" y="${PLOT.y0 - 3}" text-anchor="end">%</text>`,
+  ].join('');
+
+  let model = '';
+  if (band.length) {
+    const up = band.map(([t, , u]) => `${n1(sx(t))},${n1(sy(u))}`);
+    const dn = band.map(([t, , , d]) => `${n1(sx(t))},${n1(sy(d))}`).reverse();
+    const mid = band.map(([t, m]) => `${n1(sx(t))},${n1(sy(m))}`);
+    model = `<g class="fit"><polygon class="band" points="${up.concat(dn).join(' ')}"/>`
+      + `<polyline class="line" points="${mid.join(' ')}"/></g>`;
+  }
+
+  const dots = points.map((p) => {
+    const tip = tipText(p.row || {}, fit);
+    return `<circle class="dot" cx="${n1(sx(p.tau))}" cy="${n1(sy(p.rate))}" r="4"`
+      + ` fill-opacity="${alphaForAge(p.weekAge)}" data-tip="${esc(tip)}">`
+      + `<title>${esc(tip.split('|').join(' · '))}</title></circle>`;
+  }).join('');
+
+  // 미확정 마커 — 속 빈 원. 아직 기록되지 않은 값이라는 뜻이고, 그 이상은 아니다.
+  const mark = pending
+    ? `<circle class="pending" cx="${n1(sx(pending.tau))}" cy="${n1(sy(pending.rate))}" r="5.5"><title>미확정 (입력 중)</title></circle>`
+    : '';
+
+  return `<svg class="st1-chart" viewBox="0 0 ${SVG_W} ${SVG_H}" preserveAspectRatio="xMidYMid meet"`
+    + ` role="img" aria-label="${esc(key)} 잔존일수 대비 금리 산점도">`
+    + `${grid}`
+    + `<line class="axis-line" x1="${PLOT.x0}" y1="${PLOT.y1}" x2="${PLOT.x1}" y2="${PLOT.y1}"/>`
+    + `<line class="axis-line" x1="${PLOT.x0}" y1="${PLOT.y0}" x2="${PLOT.x0}" y2="${PLOT.y1}"/>`
+    + `${model}${dots}${mark}${axis}</svg>`;
+}
+
+/** 계보 블록 — 제목줄 + (점이 충분하면) 차트. */
+function seriesBlock(key, series, pending) {
+  const n = series.points.length;
+  const enough = n >= MIN_FIT_POINTS;
+  // 점이 충분해도 잔존일수가 한 자리에 몰리면 fit.ok 가 false 다 — 점은 그리되 선은 긋지 않는다.
+  const meta = enough && series.fit.ok
+    ? `n=${series.fit.n} · σ ${n1(series.fit.sigma * 100)}bp`
+    : `유효 관측 ${n}개 — 적합선 없음`;
+  const head = `<div class="chart-head"><span class="cname">${esc(key)}</span>`
+    + `<span class="cmeta">${esc(meta)}</span></div>`;
+  return `<div class="chart-block">${head}${enough ? chartSvg(key, series, pending) : ''}</div>`;
+}
+
+/** 프리뷰가 좌표를 만들 수 있으면 그 행을, 아니면 null. */
+function pendingRow() {
+  const dateEl = $('st1-date');
+  const row = rowFromPreview(PREVIEW, { date: dateEl ? dateEl.value : undefined, raw: '' });
+  return row.rate != null && residualDays(row) != null ? row : null;
+}
+
+function paintResidual(pending, key) {
+  const el = $('st1-resid');
+  if (!el) return;
+  if (!pending) { el.textContent = ''; return; }
+  const series = CURVES[key];
+  const bp = residualBp(pending, series && series.fit);
+  el.textContent = bp == null ? `${key} · 적합선 없음` : `${key} · 적합선 대비 ${fmtBp(bp)}`;
+}
+
+function renderChart() {
+  const host = $('st1-charts');
+  if (!host) return;
+  hideTip();
+
+  // 원장 필터와 무관하게 전체 원장을 쓴다. 창·감쇠는 차트 자기 컨트롤이 정한다.
+  CURVES = buildSeries(allRows(), {
+    refDate: todayLocal(),
+    maxWeeks: VIEW.maxWeeks,
+    halfLifeWeeks: VIEW.halfLifeWeeks,
+  });
+
+  const pending = pendingRow();
+  const pendingKey = pending ? seriesKey(pending) : null;
+
+  const blocks = [];
+  for (const key of SERIES_ORDER) {
+    if (VIEW.hidden.includes(key)) continue;
+    const series = CURVES[key];
+    if (!series) continue;
+    const mark = pending && pendingKey === key
+      ? { tau: residualDays(pending), rate: pending.rate }
+      : null;
+    blocks.push(seriesBlock(key, series, mark));
+  }
+
+  host.innerHTML = blocks.length
+    ? blocks.join('')
+    : '<div class="empty">그릴 관측이 없습니다 — 만기와 금리가 모두 있는 기록이 필요합니다.</div>';
+
+  paintResidual(pending, pendingKey);
+}
+
+function hideTip() {
+  const t = $('st1-tip');
+  if (t) t.hidden = true;
+}
+
+/**
+ * 툴팁 — 차트 영역에 위임 리스너 하나. 점마다 붙이면 재렌더마다 전부 다시 달아야 한다.
+ * pointer 이벤트라 hover 와 tap 이 같은 경로로 들어온다.
+ */
+function initTip() {
+  const area = $('st1-chart-area');
+  const tip = $('st1-tip');
+  if (!area || !tip) return;
+
+  const show = (e) => {
+    const target = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (!target) { hideTip(); return; }
+    tip.textContent = target.getAttribute('data-tip').split('|').join('\n');
+    tip.hidden = false;
+
+    // 위치는 영역 기준 상대좌표. 위가 좁으면 아래로 뒤집고, 좌우로는 영역 안에 가둔다.
+    const ar = area.getBoundingClientRect();
+    const cr = target.getBoundingClientRect();
+    const x = Math.max(2, Math.min(cr.left - ar.left + cr.width / 2 - tip.offsetWidth / 2,
+      ar.width - tip.offsetWidth - 2));
+    const above = cr.top - ar.top - tip.offsetHeight - 8;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${above < 0 ? cr.bottom - ar.top + 8 : above}px`;
+  };
+
+  area.addEventListener('pointerover', show);
+  area.addEventListener('pointerdown', show);
+  area.addEventListener('pointerleave', hideTip);
+}
+
+function loadView() {
+  try { return readView(localStorage.getItem(LS_VIEW)); } catch { return DEFAULT_VIEW(); }
+}
+
+function saveView() {
+  // 보기 설정이라 유실돼도 기록은 멀쩡하다 — 테마와 같이 조용히 넘긴다(버퍼와 다른 지점).
+  try { localStorage.setItem(LS_VIEW, JSON.stringify(viewEnvelope(VIEW))); } catch { /* noop */ }
+}
+
+function initChartControls() {
+  VIEW = loadView();
+
+  const wk = $('st1-cv-weeks');
+  const hl = $('st1-cv-half');
+  wk.value = VIEW.maxWeeks == null ? 'all' : String(VIEW.maxWeeks);
+  hl.value = VIEW.halfLifeWeeks == null ? 'none' : String(VIEW.halfLifeWeeks);
+  wk.addEventListener('change', () => {
+    VIEW.maxWeeks = wk.value === 'all' ? null : Number(wk.value);
+    saveView(); renderChart();
+  });
+  hl.addEventListener('change', () => {
+    VIEW.halfLifeWeeks = hl.value === 'none' ? null : Number(hl.value);
+    saveView(); renderChart();
+  });
+
+  const box = $('st1-cv-series');
+  box.innerHTML = SERIES_ORDER.map((k) => `<label class="tg"><input type="checkbox" data-series="${esc(k)}"`
+    + `${VIEW.hidden.includes(k) ? '' : ' checked'}>${esc(k)}</label>`).join('');
+  box.addEventListener('change', (e) => {
+    const cb = e.target && e.target.closest ? e.target.closest('input[data-series]') : null;
+    if (!cb) return;
+    const k = cb.dataset.series;
+    VIEW.hidden = cb.checked
+      ? VIEW.hidden.filter((x) => x !== k)
+      : [...new Set([...VIEW.hidden, k])];
+    saveView(); renderChart();
+  });
+
+  initTip();
 }
 
 /** 라이트/다크 전환. 봉투 규약은 버퍼와 같다(키만 다르다). 기본은 라이트. */
