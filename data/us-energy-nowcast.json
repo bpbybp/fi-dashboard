@@ -1080,7 +1080,7 @@
         "unit": "Dollars per Barrel",
         "sa": "NSA",
         "freq": "monthly-avg-of-daily",
-        "last_updated": "2026-08"
+        "last_updated": "2026-09"
       },
       "data": [
         {
@@ -2140,8 +2140,13 @@
         },
         {
           "period": "2026-08",
-          "value": 83.64588235294117,
-          "weeks": 17
+          "value": 83.89761904761905,
+          "weeks": 21
+        },
+        {
+          "period": "2026-09",
+          "value": 91.48,
+          "weeks": 1
         }
       ]
     },
