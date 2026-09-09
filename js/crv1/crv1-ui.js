@@ -17,6 +17,8 @@
 //   (curve-efficiency.html 과 같은 방식). fetch 없음 — 신규 네트워크 호출을 만들지 않는다.
 
 import { snapshot, WINDOW } from './crv1-calc.js';
+import { DEFAULT_WINDOW, WINDOW_LABEL, history, slice, stats } from './crv1-history.js';
+import { captionText, chartSvg, headlineText } from './crv1-chart.js';
 
 /** 중립 기준 토글. 기본은 듀레이션 — 시간 중립은 볼록 구간에서 구조적으로 어긋난다. */
 export const NEUTRAL_BASES = [
@@ -24,6 +26,13 @@ export const NEUTRAL_BASES = [
   { key: 'time', label: '시간' },
 ];
 export const DEFAULT_BASIS = 'duration';
+
+/** 이력 패널 표시 토글. 기본은 비중 — 갭은 중립 선택에 딸린 파생값이라 한 겹 뒤다. */
+export const CHART_MODES = [
+  { key: 'ratio', label: '비중' },
+  { key: 'gap', label: '갭' },
+];
+export const DEFAULT_MODE = 'ratio';
 
 const LS_KEY = 'crv1-view';
 
@@ -114,11 +123,16 @@ export function barHTML(range, unit) {
 /** 값이 없는 행의 자리표시. 사유 라벨은 행 끝 별도 칸에 붙는다. */
 const nil = '<span class="nil">—</span>';
 
-/** 구간 비중 1행. tight 여도 중립은 참조용으로 남긴다(금리를 쓰지 않는 값이라 살아 있다). */
+/**
+ * 구간 비중 1행. tight 여도 중립은 참조용으로 남긴다(금리를 쓰지 않는 값이라 살아 있다).
+ * data-key 는 아래 이력 패널이 어느 조합을 그릴지 고르는 손잡이다 — 값이 없는 행도 고를 수
+ * 있어야 한다(오늘 압축이어도 이력은 있다). 선택 하이라이트는 렌더가 아니라 classList 로
+ * 얹는다 — 호버 미리보기마다 표를 다시 그리면 마우스가 자기 아래의 DOM 을 잃는다.
+ */
 export function weightRowHTML(it) {
   const dead = it.flag != null;
   const lab = flagLabel(it.flag);
-  return `<tr${dead ? ' class="dead"' : ''}>`
+  return `<tr data-key="${esc(it.key)}"${dead ? ' class="dead"' : ''}>`
     + `<th>${esc(tripleLabel(it))}</th>`
     + `<td class="num">${dead ? nil : fmt(it.ratio)}</td>`
     + `<td class="num">${fmt(it.neutral)}</td>`
@@ -146,6 +160,54 @@ export function renderTables(view) {
     weights: view.weights.map(weightRowHTML).join(''),
     slopes: view.slopes.map(slopeRowHTML).join(''),
   };
+}
+
+// ── 이력 패널 (Phase 4) ──────────────────────────────────────────────────────
+//
+// 표는 최신일 한 줄이고 차트는 그 줄이 어디서 왔는지를 보여 준다. 둘은 같은 산식(weightsAt)에서
+// 나오므로 차트 제목의 현재값과 표의 같은 행 숫자는 항상 일치해야 한다 — 어긋나면 배선 오류다.
+
+/**
+ * 차트 한 장에 필요한 것 전부. 계산은 crv1-history 가, 그리기는 crv1-chart 가 한다.
+ * 여기서 값을 만들거나 보정하지 않는다(이 파일의 규약 — 헤더 11-14행).
+ *
+ * @param {ReturnType<import('./crv1-history.js').history>} hist
+ * @param {string} key                조합 키. 없거나 못 찾으면 첫 조합으로 접는다.
+ * @param {'ratio'|'gap'} mode
+ * @param {number|'all'} win
+ */
+export function chartModel(hist, key, mode = DEFAULT_MODE, win = DEFAULT_WINDOW) {
+  const s = hist.series.find((x) => x.key === key) || hist.series[0];
+  const values = mode === 'gap' ? s.gap : s.ratio;
+  const st = stats(values, win, s.flag);
+  const last = s.dates.length - 1;
+  return {
+    key: s.key,
+    label: tripleLabel(s),
+    headline: headlineText({ ratio: s.ratio[last], neutral: s.neutral[last], gap: s.gap[last] }),
+    caption: captionText(st),
+    stats: st,
+    svg: chartSvg({
+      dates: slice(s.dates, win),
+      main: slice(values, win),
+      // 중립은 비중과 같은 축 위에서만 뜻이 있다. 갭 뷰에서 중립은 정의상 0선이라 겹친다.
+      dashed: mode === 'gap' ? null : slice(s.neutral, win),
+      mean: st.mean,
+      zeroRef: mode === 'gap',
+      unit: mode === 'gap' ? '%p' : '%',
+      signed: mode === 'gap',
+      ariaLabel: `${tripleLabel(s)} ${mode === 'gap' ? '갭' : '비중'} ${WINDOW_LABEL[win]} 이력`,
+    }),
+  };
+}
+
+/** 토글 버튼 활성 표시. data-* 값이 현재 상태와 같은 버튼에만 .active 를 얹는다. */
+function markActive(containerId, attr, value) {
+  const box = document.getElementById(containerId);
+  if (!box) return;
+  for (const btn of box.querySelectorAll('button')) {
+    btn.classList.toggle('active', btn.dataset[attr] === String(value));
+  }
 }
 
 // ── 상태 ─────────────────────────────────────────────────────────────────────
@@ -177,6 +239,42 @@ export function initCrv1() {
   }
 
   let basis = loadBasis();
+  let mode = DEFAULT_MODE;
+  let win = DEFAULT_WINDOW;
+  let selKey = null;      // 클릭으로 고정한 행. 첫 렌더에서 첫 조합으로 채운다.
+  let hoverKey = null;    // 호버 미리보기. mouseleave 면 비우고 고정 행으로 되돌아간다.
+
+  // 이력은 basis 당 한 번만 만든다(2,629행 × 9조합 ≈ 30ms). 창 전환·행 선택·호버는
+  // 이 결과를 슬라이스만 하므로 재계산이 없다 — 호버마다 다시 계산하면 표 위를 훑는 것만으로
+  // 초당 수십 번 전체 이력이 돌게 된다.
+  const histCache = Object.create(null);
+  const getHist = (b) => (histCache[b] ||= history(curve, { neutral: b }));
+
+  const wbody = document.getElementById('crv1-wbody');
+  const chartEl = document.getElementById('crv1-chart');
+  const titleEl = document.getElementById('crv1-chart-title');
+  const headEl = document.getElementById('crv1-chart-head');
+  const capEl = document.getElementById('crv1-chart-caption');
+
+  /** 고정 행 하이라이트. 표를 다시 그리지 않고 class 만 갈아 끼운다. */
+  const applySel = () => {
+    if (!wbody) return;
+    for (const tr of wbody.querySelectorAll('tr[data-key]')) {
+      tr.classList.toggle('sel', tr.dataset.key === selKey);
+    }
+  };
+
+  const drawChart = () => {
+    if (!chartEl) return;
+    const m = chartModel(getHist(basis), hoverKey || selKey, mode, win);
+    selKey ||= m.key;                       // 첫 렌더: 첫 조합이 곧 초기 선택
+    chartEl.innerHTML = m.svg;
+    if (titleEl) titleEl.textContent = m.label;
+    if (headEl) headEl.textContent = m.headline;
+    if (capEl) capEl.textContent = m.caption;
+    markActive('crv1-mode', 'mode', mode);
+    markActive('crv1-win', 'win', win);
+  };
 
   const draw = () => {
     let view;
@@ -184,20 +282,21 @@ export function initCrv1() {
       view = buildView(curve, basis);
     } catch (err) {
       statusEl.className = 'empty';
+      statusEl.style.display = '';
       statusEl.textContent = `계산 실패: ${err.message}`;
       appEl.style.display = 'none';
       return;
     }
     const t = renderTables(view);
-    document.getElementById('crv1-wbody').innerHTML = t.weights;
+    wbody.innerHTML = t.weights;
     document.getElementById('crv1-sbody').innerHTML = t.slopes;
     document.getElementById('crv1-asof').textContent = view.date;
     document.getElementById('crv1-window').textContent = windowLabel(view);
     document.getElementById('crv1-neutral-col').textContent =
       `중립 (${NEUTRAL_BASES.find((b) => b.key === basis).label})`;
-    for (const btn of document.querySelectorAll('#crv1-basis button')) {
-      btn.classList.toggle('active', btn.dataset.basis === basis);
-    }
+    markActive('crv1-basis', 'basis', basis);
+    drawChart();       // 중립 기준이 바뀌면 neutral·gap 이 통째로 달라진다 → 차트도 같이 간다
+    applySel();
   };
 
   document.getElementById('crv1-basis').addEventListener('click', (e) => {
@@ -207,6 +306,47 @@ export function initCrv1() {
     saveBasis(basis);
     draw();
   });
+
+  document.getElementById('crv1-mode')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn || btn.dataset.mode === mode) return;
+    mode = btn.dataset.mode;
+    drawChart();
+  });
+
+  document.getElementById('crv1-win')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const v = btn.dataset.win === 'all' ? 'all' : Number(btn.dataset.win);
+    if (v === win) return;
+    win = v;
+    drawChart();
+  });
+
+  // 클릭 = 고정, 호버 = 미리보기. 미리보기는 하이라이트를 옮기지 않는다 — 표에서 시선이
+  // 지나간 행마다 강조가 따라다니면 무엇이 선택된 것인지 알 수 없게 된다.
+  if (wbody) {
+    wbody.addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-key]');
+      if (!tr || tr.dataset.key === selKey) return;
+      selKey = tr.dataset.key;
+      hoverKey = null;
+      applySel();
+      drawChart();
+    });
+    wbody.addEventListener('mouseover', (e) => {
+      const tr = e.target.closest('tr[data-key]');
+      const k = tr ? tr.dataset.key : null;
+      if (k === hoverKey) return;
+      hoverKey = k;
+      drawChart();
+    });
+    wbody.addEventListener('mouseleave', () => {
+      if (hoverKey == null) return;
+      hoverKey = null;
+      drawChart();
+    });
+  }
 
   statusEl.style.display = 'none';
   appEl.style.display = '';
