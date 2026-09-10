@@ -15,25 +15,25 @@
     "beta": {
       "regression": {
         "5y": {
-          "beta": 0.5435,
-          "r2": 0.909,
+          "beta": 0.5447,
+          "r2": 0.908,
           "n": 20
         },
         "10y": {
-          "beta": 0.4631,
-          "r2": 0.843,
+          "beta": 0.464,
+          "r2": 0.842,
           "n": 40
         },
         "all": {
-          "beta": 0.3828,
-          "r2": 0.808,
+          "beta": 0.3833,
+          "r2": 0.807,
           "n": 62
         }
       },
       "with_intercept_10y": {
-        "beta": 0.4649,
-        "intercept": 0.254,
-        "r2": 0.849,
+        "beta": 0.4658,
+        "intercept": 0.257,
+        "r2": 0.848,
         "n": 40
       },
       "theory_range": [
@@ -52,9 +52,9 @@
       "tot_yoy_pct": -12.46,
       "export_price_yoy_pct": 5.91,
       "import_price_yoy_pct": 17.06,
-      "gap_proxy_pp_5y": -6.77,
-      "gap_proxy_pp_10y": -5.77,
-      "gap_proxy_pp_all": -4.77
+      "gap_proxy_pp_5y": -6.79,
+      "gap_proxy_pp_10y": -5.78,
+      "gap_proxy_pp_all": -4.78
     },
     {
       "date": "2011-09",
@@ -62,9 +62,9 @@
       "tot_yoy_pct": -10.8,
       "export_price_yoy_pct": 4.67,
       "import_price_yoy_pct": 15.6,
-      "gap_proxy_pp_5y": -5.87,
-      "gap_proxy_pp_10y": -5,
-      "gap_proxy_pp_all": -4.13
+      "gap_proxy_pp_5y": -5.88,
+      "gap_proxy_pp_10y": -5.01,
+      "gap_proxy_pp_all": -4.14
     },
     {
       "date": "2011-10",
@@ -72,9 +72,9 @@
       "tot_yoy_pct": -10.93,
       "export_price_yoy_pct": 2.36,
       "import_price_yoy_pct": 10.96,
-      "gap_proxy_pp_5y": -5.94,
-      "gap_proxy_pp_10y": -5.06,
-      "gap_proxy_pp_all": -4.18
+      "gap_proxy_pp_5y": -5.95,
+      "gap_proxy_pp_10y": -5.07,
+      "gap_proxy_pp_all": -4.19
     },
     {
       "date": "2011-11",
@@ -82,9 +82,9 @@
       "tot_yoy_pct": -9.1,
       "export_price_yoy_pct": 1.34,
       "import_price_yoy_pct": 9.8,
-      "gap_proxy_pp_5y": -4.95,
-      "gap_proxy_pp_10y": -4.21,
-      "gap_proxy_pp_all": -3.48
+      "gap_proxy_pp_5y": -4.96,
+      "gap_proxy_pp_10y": -4.22,
+      "gap_proxy_pp_all": -3.49
     },
     {
       "date": "2011-12",
@@ -92,8 +92,8 @@
       "tot_yoy_pct": -9.89,
       "export_price_yoy_pct": -1.18,
       "import_price_yoy_pct": 5.64,
-      "gap_proxy_pp_5y": -5.38,
-      "gap_proxy_pp_10y": -4.58,
+      "gap_proxy_pp_5y": -5.39,
+      "gap_proxy_pp_10y": -4.59,
       "gap_proxy_pp_all": -3.79
     },
     {
@@ -102,9 +102,9 @@
       "tot_yoy_pct": -6.54,
       "export_price_yoy_pct": -0.58,
       "import_price_yoy_pct": 4.97,
-      "gap_proxy_pp_5y": -3.55,
+      "gap_proxy_pp_5y": -3.56,
       "gap_proxy_pp_10y": -3.03,
-      "gap_proxy_pp_all": -2.5
+      "gap_proxy_pp_all": -2.51
     },
     {
       "date": "2012-02",
@@ -112,9 +112,9 @@
       "tot_yoy_pct": -6.28,
       "export_price_yoy_pct": -1.14,
       "import_price_yoy_pct": 4.49,
-      "gap_proxy_pp_5y": -3.41,
+      "gap_proxy_pp_5y": -3.42,
       "gap_proxy_pp_10y": -2.91,
-      "gap_proxy_pp_all": -2.4
+      "gap_proxy_pp_all": -2.41
     },
     {
       "date": "2012-03",
@@ -122,8 +122,8 @@
       "tot_yoy_pct": -6.4,
       "export_price_yoy_pct": -2.97,
       "import_price_yoy_pct": 3.2,
-      "gap_proxy_pp_5y": -3.48,
-      "gap_proxy_pp_10y": -2.96,
+      "gap_proxy_pp_5y": -3.49,
+      "gap_proxy_pp_10y": -2.97,
       "gap_proxy_pp_all": -2.45
     },
     {
@@ -132,7 +132,7 @@
       "tot_yoy_pct": -7.23,
       "export_price_yoy_pct": -5.01,
       "import_price_yoy_pct": -2.6,
-      "gap_proxy_pp_5y": -3.93,
+      "gap_proxy_pp_5y": -3.94,
       "gap_proxy_pp_10y": -3.35,
       "gap_proxy_pp_all": -2.77
     },
@@ -143,8 +143,8 @@
       "export_price_yoy_pct": -5.84,
       "import_price_yoy_pct": -4.05,
       "gap_proxy_pp_5y": -1.63,
-      "gap_proxy_pp_10y": -1.38,
-      "gap_proxy_pp_all": -1.14
+      "gap_proxy_pp_10y": -1.39,
+      "gap_proxy_pp_all": -1.15
     },
     {
       "date": "2012-06",
@@ -152,8 +152,8 @@
       "tot_yoy_pct": -2.47,
       "export_price_yoy_pct": -7.07,
       "import_price_yoy_pct": -7.89,
-      "gap_proxy_pp_5y": -1.34,
-      "gap_proxy_pp_10y": -1.14,
+      "gap_proxy_pp_5y": -1.35,
+      "gap_proxy_pp_10y": -1.15,
       "gap_proxy_pp_all": -0.95
     },
     {
@@ -232,9 +232,9 @@
       "tot_yoy_pct": 1.92,
       "export_price_yoy_pct": -1.96,
       "import_price_yoy_pct": -4.61,
-      "gap_proxy_pp_5y": 1.04,
+      "gap_proxy_pp_5y": 1.05,
       "gap_proxy_pp_10y": 0.89,
-      "gap_proxy_pp_all": 0.73
+      "gap_proxy_pp_all": 0.74
     },
     {
       "date": "2013-03",
@@ -252,8 +252,8 @@
       "tot_yoy_pct": 5.43,
       "export_price_yoy_pct": -4.01,
       "import_price_yoy_pct": -7.51,
-      "gap_proxy_pp_5y": 2.95,
-      "gap_proxy_pp_10y": 2.51,
+      "gap_proxy_pp_5y": 2.96,
+      "gap_proxy_pp_10y": 2.52,
       "gap_proxy_pp_all": 2.08
     },
     {
@@ -272,8 +272,8 @@
       "tot_yoy_pct": 6.09,
       "export_price_yoy_pct": 0.98,
       "import_price_yoy_pct": -0.79,
-      "gap_proxy_pp_5y": 3.31,
-      "gap_proxy_pp_10y": 2.82,
+      "gap_proxy_pp_5y": 3.32,
+      "gap_proxy_pp_10y": 2.83,
       "gap_proxy_pp_all": 2.33
     },
     {
@@ -302,7 +302,7 @@
       "tot_yoy_pct": 2.93,
       "export_price_yoy_pct": -0.95,
       "import_price_yoy_pct": -3.77,
-      "gap_proxy_pp_5y": 1.59,
+      "gap_proxy_pp_5y": 1.6,
       "gap_proxy_pp_10y": 1.36,
       "gap_proxy_pp_all": 1.12
     },
@@ -312,9 +312,9 @@
       "tot_yoy_pct": 3.85,
       "export_price_yoy_pct": -0.53,
       "import_price_yoy_pct": -2.85,
-      "gap_proxy_pp_5y": 2.09,
-      "gap_proxy_pp_10y": 1.78,
-      "gap_proxy_pp_all": 1.47
+      "gap_proxy_pp_5y": 2.1,
+      "gap_proxy_pp_10y": 1.79,
+      "gap_proxy_pp_all": 1.48
     },
     {
       "date": "2013-11",
@@ -322,7 +322,7 @@
       "tot_yoy_pct": 3.28,
       "export_price_yoy_pct": 0.1,
       "import_price_yoy_pct": -1.68,
-      "gap_proxy_pp_5y": 1.78,
+      "gap_proxy_pp_5y": 1.79,
       "gap_proxy_pp_10y": 1.52,
       "gap_proxy_pp_all": 1.26
     },
@@ -443,7 +443,7 @@
       "export_price_yoy_pct": -4.05,
       "import_price_yoy_pct": -9.43,
       "gap_proxy_pp_5y": 1.66,
-      "gap_proxy_pp_10y": 1.41,
+      "gap_proxy_pp_10y": 1.42,
       "gap_proxy_pp_all": 1.17
     },
     {
@@ -462,9 +462,9 @@
       "tot_yoy_pct": 8.6,
       "export_price_yoy_pct": -9.33,
       "import_price_yoy_pct": -19.86,
-      "gap_proxy_pp_5y": 4.67,
-      "gap_proxy_pp_10y": 3.98,
-      "gap_proxy_pp_all": 3.29
+      "gap_proxy_pp_5y": 4.68,
+      "gap_proxy_pp_10y": 3.99,
+      "gap_proxy_pp_all": 3.3
     },
     {
       "date": "2015-02",
@@ -472,9 +472,9 @@
       "tot_yoy_pct": 12.46,
       "export_price_yoy_pct": -8.79,
       "import_price_yoy_pct": -18.31,
-      "gap_proxy_pp_5y": 6.77,
-      "gap_proxy_pp_10y": 5.77,
-      "gap_proxy_pp_all": 4.77
+      "gap_proxy_pp_5y": 6.79,
+      "gap_proxy_pp_10y": 5.78,
+      "gap_proxy_pp_all": 4.78
     },
     {
       "date": "2015-03",
@@ -482,9 +482,9 @@
       "tot_yoy_pct": 11.26,
       "export_price_yoy_pct": -8.49,
       "import_price_yoy_pct": -18.34,
-      "gap_proxy_pp_5y": 6.12,
-      "gap_proxy_pp_10y": 5.21,
-      "gap_proxy_pp_all": 4.31
+      "gap_proxy_pp_5y": 6.13,
+      "gap_proxy_pp_10y": 5.22,
+      "gap_proxy_pp_all": 4.32
     },
     {
       "date": "2015-04",
@@ -492,9 +492,9 @@
       "tot_yoy_pct": 11.74,
       "export_price_yoy_pct": -8.03,
       "import_price_yoy_pct": -18.6,
-      "gap_proxy_pp_5y": 6.38,
-      "gap_proxy_pp_10y": 5.44,
-      "gap_proxy_pp_all": 4.49
+      "gap_proxy_pp_5y": 6.39,
+      "gap_proxy_pp_10y": 5.45,
+      "gap_proxy_pp_all": 4.5
     },
     {
       "date": "2015-05",
@@ -502,9 +502,9 @@
       "tot_yoy_pct": 12.76,
       "export_price_yoy_pct": -7.62,
       "import_price_yoy_pct": -17.93,
-      "gap_proxy_pp_5y": 6.94,
-      "gap_proxy_pp_10y": 5.91,
-      "gap_proxy_pp_all": 4.88
+      "gap_proxy_pp_5y": 6.95,
+      "gap_proxy_pp_10y": 5.92,
+      "gap_proxy_pp_all": 4.89
     },
     {
       "date": "2015-06",
@@ -512,9 +512,9 @@
       "tot_yoy_pct": 11.95,
       "export_price_yoy_pct": -8.66,
       "import_price_yoy_pct": -19.26,
-      "gap_proxy_pp_5y": 6.49,
-      "gap_proxy_pp_10y": 5.53,
-      "gap_proxy_pp_all": 4.57
+      "gap_proxy_pp_5y": 6.51,
+      "gap_proxy_pp_10y": 5.54,
+      "gap_proxy_pp_all": 4.58
     },
     {
       "date": "2015-07",
@@ -522,8 +522,8 @@
       "tot_yoy_pct": 11.8,
       "export_price_yoy_pct": -10.77,
       "import_price_yoy_pct": -21.17,
-      "gap_proxy_pp_5y": 6.41,
-      "gap_proxy_pp_10y": 5.46,
+      "gap_proxy_pp_5y": 6.43,
+      "gap_proxy_pp_10y": 5.48,
       "gap_proxy_pp_all": 4.52
     },
     {
@@ -532,9 +532,9 @@
       "tot_yoy_pct": 11.53,
       "export_price_yoy_pct": -12.71,
       "import_price_yoy_pct": -22.89,
-      "gap_proxy_pp_5y": 6.27,
-      "gap_proxy_pp_10y": 5.34,
-      "gap_proxy_pp_all": 4.41
+      "gap_proxy_pp_5y": 6.28,
+      "gap_proxy_pp_10y": 5.35,
+      "gap_proxy_pp_all": 4.42
     },
     {
       "date": "2015-09",
@@ -542,9 +542,9 @@
       "tot_yoy_pct": 12.44,
       "export_price_yoy_pct": -13.26,
       "import_price_yoy_pct": -22.66,
-      "gap_proxy_pp_5y": 6.76,
-      "gap_proxy_pp_10y": 5.76,
-      "gap_proxy_pp_all": 4.76
+      "gap_proxy_pp_5y": 6.78,
+      "gap_proxy_pp_10y": 5.77,
+      "gap_proxy_pp_all": 4.77
     },
     {
       "date": "2015-10",
@@ -552,8 +552,8 @@
       "tot_yoy_pct": 12.19,
       "export_price_yoy_pct": -12.56,
       "import_price_yoy_pct": -20.05,
-      "gap_proxy_pp_5y": 6.63,
-      "gap_proxy_pp_10y": 5.65,
+      "gap_proxy_pp_5y": 6.64,
+      "gap_proxy_pp_10y": 5.66,
       "gap_proxy_pp_all": 4.67
     },
     {
@@ -562,9 +562,9 @@
       "tot_yoy_pct": 9.1,
       "export_price_yoy_pct": -12.17,
       "import_price_yoy_pct": -18.64,
-      "gap_proxy_pp_5y": 4.95,
-      "gap_proxy_pp_10y": 4.21,
-      "gap_proxy_pp_all": 3.48
+      "gap_proxy_pp_5y": 4.96,
+      "gap_proxy_pp_10y": 4.22,
+      "gap_proxy_pp_all": 3.49
     },
     {
       "date": "2015-12",
@@ -572,9 +572,9 @@
       "tot_yoy_pct": 7.84,
       "export_price_yoy_pct": -10.84,
       "import_price_yoy_pct": -16.19,
-      "gap_proxy_pp_5y": 4.26,
-      "gap_proxy_pp_10y": 3.63,
-      "gap_proxy_pp_all": 3
+      "gap_proxy_pp_5y": 4.27,
+      "gap_proxy_pp_10y": 3.64,
+      "gap_proxy_pp_all": 3.01
     },
     {
       "date": "2016-01",
@@ -582,8 +582,8 @@
       "tot_yoy_pct": 5.4,
       "export_price_yoy_pct": -10.19,
       "import_price_yoy_pct": -14.33,
-      "gap_proxy_pp_5y": 2.93,
-      "gap_proxy_pp_10y": 2.5,
+      "gap_proxy_pp_5y": 2.94,
+      "gap_proxy_pp_10y": 2.51,
       "gap_proxy_pp_all": 2.07
     },
     {
@@ -592,7 +592,7 @@
       "tot_yoy_pct": 3.15,
       "export_price_yoy_pct": -11.3,
       "import_price_yoy_pct": -16.08,
-      "gap_proxy_pp_5y": 1.71,
+      "gap_proxy_pp_5y": 1.72,
       "gap_proxy_pp_10y": 1.46,
       "gap_proxy_pp_all": 1.21
     },
@@ -623,7 +623,7 @@
       "export_price_yoy_pct": -10.55,
       "import_price_yoy_pct": -11.93,
       "gap_proxy_pp_5y": 0.59,
-      "gap_proxy_pp_10y": 0.5,
+      "gap_proxy_pp_10y": 0.51,
       "gap_proxy_pp_all": 0.42
     },
     {
@@ -642,7 +642,7 @@
       "tot_yoy_pct": 0.45,
       "export_price_yoy_pct": -7.82,
       "import_price_yoy_pct": -8.32,
-      "gap_proxy_pp_5y": 0.24,
+      "gap_proxy_pp_5y": 0.25,
       "gap_proxy_pp_10y": 0.21,
       "gap_proxy_pp_all": 0.17
     },
@@ -722,7 +722,7 @@
       "tot_yoy_pct": -4.44,
       "export_price_yoy_pct": 9.92,
       "import_price_yoy_pct": 11.76,
-      "gap_proxy_pp_5y": -2.41,
+      "gap_proxy_pp_5y": -2.42,
       "gap_proxy_pp_10y": -2.06,
       "gap_proxy_pp_all": -1.7
     },
@@ -762,7 +762,7 @@
       "tot_yoy_pct": 2.8,
       "export_price_yoy_pct": 9.04,
       "import_price_yoy_pct": 6.7,
-      "gap_proxy_pp_5y": 1.52,
+      "gap_proxy_pp_5y": 1.53,
       "gap_proxy_pp_10y": 1.3,
       "gap_proxy_pp_all": 1.07
     },
@@ -823,8 +823,8 @@
       "export_price_yoy_pct": 6.07,
       "import_price_yoy_pct": 6.99,
       "gap_proxy_pp_5y": -0.6,
-      "gap_proxy_pp_10y": -0.51,
-      "gap_proxy_pp_all": -0.42
+      "gap_proxy_pp_10y": -0.52,
+      "gap_proxy_pp_all": -0.43
     },
     {
       "date": "2018-02",
@@ -862,9 +862,9 @@
       "tot_yoy_pct": -4.14,
       "export_price_yoy_pct": 5.53,
       "import_price_yoy_pct": 12.54,
-      "gap_proxy_pp_5y": -2.25,
+      "gap_proxy_pp_5y": -2.26,
       "gap_proxy_pp_10y": -1.92,
-      "gap_proxy_pp_all": -1.58
+      "gap_proxy_pp_all": -1.59
     },
     {
       "date": "2018-06",
@@ -872,8 +872,8 @@
       "tot_yoy_pct": -6.37,
       "export_price_yoy_pct": 5.67,
       "import_price_yoy_pct": 14.45,
-      "gap_proxy_pp_5y": -3.46,
-      "gap_proxy_pp_10y": -2.95,
+      "gap_proxy_pp_5y": -3.47,
+      "gap_proxy_pp_10y": -2.96,
       "gap_proxy_pp_all": -2.44
     },
     {
@@ -882,9 +882,9 @@
       "tot_yoy_pct": -8.13,
       "export_price_yoy_pct": 4.88,
       "import_price_yoy_pct": 13.05,
-      "gap_proxy_pp_5y": -4.42,
+      "gap_proxy_pp_5y": -4.43,
       "gap_proxy_pp_10y": -3.77,
-      "gap_proxy_pp_all": -3.11
+      "gap_proxy_pp_all": -3.12
     },
     {
       "date": "2018-08",
@@ -892,9 +892,9 @@
       "tot_yoy_pct": -8.16,
       "export_price_yoy_pct": 4.29,
       "import_price_yoy_pct": 11.21,
-      "gap_proxy_pp_5y": -4.43,
-      "gap_proxy_pp_10y": -3.78,
-      "gap_proxy_pp_all": -3.12
+      "gap_proxy_pp_5y": -4.44,
+      "gap_proxy_pp_10y": -3.79,
+      "gap_proxy_pp_all": -3.13
     },
     {
       "date": "2018-09",
@@ -902,9 +902,9 @@
       "tot_yoy_pct": -6.96,
       "export_price_yoy_pct": 3.51,
       "import_price_yoy_pct": 11.16,
-      "gap_proxy_pp_5y": -3.78,
-      "gap_proxy_pp_10y": -3.22,
-      "gap_proxy_pp_all": -2.66
+      "gap_proxy_pp_5y": -3.79,
+      "gap_proxy_pp_10y": -3.23,
+      "gap_proxy_pp_all": -2.67
     },
     {
       "date": "2018-10",
@@ -912,8 +912,8 @@
       "tot_yoy_pct": -7.75,
       "export_price_yoy_pct": 2.54,
       "import_price_yoy_pct": 11.42,
-      "gap_proxy_pp_5y": -4.21,
-      "gap_proxy_pp_10y": -3.59,
+      "gap_proxy_pp_5y": -4.22,
+      "gap_proxy_pp_10y": -3.6,
       "gap_proxy_pp_all": -2.97
     },
     {
@@ -922,9 +922,9 @@
       "tot_yoy_pct": -10.12,
       "export_price_yoy_pct": -1.11,
       "import_price_yoy_pct": 4.12,
-      "gap_proxy_pp_5y": -5.5,
-      "gap_proxy_pp_10y": -4.69,
-      "gap_proxy_pp_all": -3.87
+      "gap_proxy_pp_5y": -5.51,
+      "gap_proxy_pp_10y": -4.7,
+      "gap_proxy_pp_all": -3.88
     },
     {
       "date": "2018-12",
@@ -932,7 +932,7 @@
       "tot_yoy_pct": -6,
       "export_price_yoy_pct": -3.51,
       "import_price_yoy_pct": -0.23,
-      "gap_proxy_pp_5y": -3.26,
+      "gap_proxy_pp_5y": -3.27,
       "gap_proxy_pp_10y": -2.78,
       "gap_proxy_pp_all": -2.3
     },
@@ -944,7 +944,7 @@
       "import_price_yoy_pct": -2.69,
       "gap_proxy_pp_5y": -2.65,
       "gap_proxy_pp_10y": -2.26,
-      "gap_proxy_pp_all": -1.86
+      "gap_proxy_pp_all": -1.87
     },
     {
       "date": "2019-02",
@@ -972,7 +972,7 @@
       "tot_yoy_pct": -6.19,
       "export_price_yoy_pct": -6.02,
       "import_price_yoy_pct": -0.27,
-      "gap_proxy_pp_5y": -3.36,
+      "gap_proxy_pp_5y": -3.37,
       "gap_proxy_pp_10y": -2.87,
       "gap_proxy_pp_all": -2.37
     },
@@ -982,9 +982,9 @@
       "tot_yoy_pct": -6.04,
       "export_price_yoy_pct": -7.99,
       "import_price_yoy_pct": -4,
-      "gap_proxy_pp_5y": -3.28,
+      "gap_proxy_pp_5y": -3.29,
       "gap_proxy_pp_10y": -2.8,
-      "gap_proxy_pp_all": -2.31
+      "gap_proxy_pp_all": -2.32
     },
     {
       "date": "2019-06",
@@ -992,9 +992,9 @@
       "tot_yoy_pct": -4.66,
       "export_price_yoy_pct": -9,
       "import_price_yoy_pct": -7.01,
-      "gap_proxy_pp_5y": -2.53,
+      "gap_proxy_pp_5y": -2.54,
       "gap_proxy_pp_10y": -2.16,
-      "gap_proxy_pp_all": -1.78
+      "gap_proxy_pp_all": -1.79
     },
     {
       "date": "2019-07",
@@ -1002,9 +1002,9 @@
       "tot_yoy_pct": -2.86,
       "export_price_yoy_pct": -9.22,
       "import_price_yoy_pct": -5.13,
-      "gap_proxy_pp_5y": -1.55,
-      "gap_proxy_pp_10y": -1.32,
-      "gap_proxy_pp_all": -1.09
+      "gap_proxy_pp_5y": -1.56,
+      "gap_proxy_pp_10y": -1.33,
+      "gap_proxy_pp_all": -1.1
     },
     {
       "date": "2019-08",
@@ -1013,8 +1013,8 @@
       "export_price_yoy_pct": -10.56,
       "import_price_yoy_pct": -6.89,
       "gap_proxy_pp_5y": -2.51,
-      "gap_proxy_pp_10y": -2.13,
-      "gap_proxy_pp_all": -1.76
+      "gap_proxy_pp_10y": -2.14,
+      "gap_proxy_pp_all": -1.77
     },
     {
       "date": "2019-09",
@@ -1022,9 +1022,9 @@
       "tot_yoy_pct": -3.98,
       "export_price_yoy_pct": -10.67,
       "import_price_yoy_pct": -7.74,
-      "gap_proxy_pp_5y": -2.16,
-      "gap_proxy_pp_10y": -1.84,
-      "gap_proxy_pp_all": -1.52
+      "gap_proxy_pp_5y": -2.17,
+      "gap_proxy_pp_10y": -1.85,
+      "gap_proxy_pp_all": -1.53
     },
     {
       "date": "2019-10",
@@ -1052,8 +1052,8 @@
       "tot_yoy_pct": -2.73,
       "export_price_yoy_pct": -7.31,
       "import_price_yoy_pct": -1,
-      "gap_proxy_pp_5y": -1.48,
-      "gap_proxy_pp_10y": -1.26,
+      "gap_proxy_pp_5y": -1.49,
+      "gap_proxy_pp_10y": -1.27,
       "gap_proxy_pp_all": -1.05
     },
     {
@@ -1064,7 +1064,7 @@
       "import_price_yoy_pct": -0.64,
       "gap_proxy_pp_5y": -2.72,
       "gap_proxy_pp_10y": -2.32,
-      "gap_proxy_pp_all": -1.91
+      "gap_proxy_pp_all": -1.92
     },
     {
       "date": "2020-02",
@@ -1072,9 +1072,9 @@
       "tot_yoy_pct": -5.94,
       "export_price_yoy_pct": -7.42,
       "import_price_yoy_pct": -6.32,
-      "gap_proxy_pp_5y": -3.23,
-      "gap_proxy_pp_10y": -2.75,
-      "gap_proxy_pp_all": -2.27
+      "gap_proxy_pp_5y": -3.24,
+      "gap_proxy_pp_10y": -2.76,
+      "gap_proxy_pp_all": -2.28
     },
     {
       "date": "2020-03",
@@ -1083,7 +1083,7 @@
       "export_price_yoy_pct": -10.35,
       "import_price_yoy_pct": -14.18,
       "gap_proxy_pp_5y": -1.66,
-      "gap_proxy_pp_10y": -1.41,
+      "gap_proxy_pp_10y": -1.42,
       "gap_proxy_pp_all": -1.17
     },
     {
@@ -1102,9 +1102,9 @@
       "tot_yoy_pct": 9.98,
       "export_price_yoy_pct": -11.46,
       "import_price_yoy_pct": -15.9,
-      "gap_proxy_pp_5y": 5.42,
-      "gap_proxy_pp_10y": 4.62,
-      "gap_proxy_pp_all": 3.82
+      "gap_proxy_pp_5y": 5.44,
+      "gap_proxy_pp_10y": 4.63,
+      "gap_proxy_pp_all": 3.83
     },
     {
       "date": "2020-06",
@@ -1112,9 +1112,9 @@
       "tot_yoy_pct": 9.33,
       "export_price_yoy_pct": -8.24,
       "import_price_yoy_pct": -9.88,
-      "gap_proxy_pp_5y": 5.07,
-      "gap_proxy_pp_10y": 4.32,
-      "gap_proxy_pp_all": 3.57
+      "gap_proxy_pp_5y": 5.08,
+      "gap_proxy_pp_10y": 4.33,
+      "gap_proxy_pp_all": 3.58
     },
     {
       "date": "2020-07",
@@ -1123,7 +1123,7 @@
       "export_price_yoy_pct": -7.19,
       "import_price_yoy_pct": -10.77,
       "gap_proxy_pp_5y": 2.55,
-      "gap_proxy_pp_10y": 2.17,
+      "gap_proxy_pp_10y": 2.18,
       "gap_proxy_pp_all": 1.8
     },
     {
@@ -1132,7 +1132,7 @@
       "tot_yoy_pct": 6.73,
       "export_price_yoy_pct": -5.29,
       "import_price_yoy_pct": -9.41,
-      "gap_proxy_pp_5y": 3.66,
+      "gap_proxy_pp_5y": 3.67,
       "gap_proxy_pp_10y": 3.12,
       "gap_proxy_pp_all": 2.58
     },
@@ -1142,7 +1142,7 @@
       "tot_yoy_pct": 5.67,
       "export_price_yoy_pct": -4.87,
       "import_price_yoy_pct": -10.53,
-      "gap_proxy_pp_5y": 3.08,
+      "gap_proxy_pp_5y": 3.09,
       "gap_proxy_pp_10y": 2.63,
       "gap_proxy_pp_all": 2.17
     },
@@ -1152,8 +1152,8 @@
       "tot_yoy_pct": 7.67,
       "export_price_yoy_pct": -3.51,
       "import_price_yoy_pct": -8.92,
-      "gap_proxy_pp_5y": 4.17,
-      "gap_proxy_pp_10y": 3.55,
+      "gap_proxy_pp_5y": 4.18,
+      "gap_proxy_pp_10y": 3.56,
       "gap_proxy_pp_all": 2.94
     },
     {
@@ -1162,8 +1162,8 @@
       "tot_yoy_pct": 7.91,
       "export_price_yoy_pct": -0.94,
       "import_price_yoy_pct": -7.24,
-      "gap_proxy_pp_5y": 4.3,
-      "gap_proxy_pp_10y": 3.66,
+      "gap_proxy_pp_5y": 4.31,
+      "gap_proxy_pp_10y": 3.67,
       "gap_proxy_pp_all": 3.03
     },
     {
@@ -1172,7 +1172,7 @@
       "tot_yoy_pct": 7.55,
       "export_price_yoy_pct": 1.39,
       "import_price_yoy_pct": -4.66,
-      "gap_proxy_pp_5y": 4.1,
+      "gap_proxy_pp_5y": 4.11,
       "gap_proxy_pp_10y": 3.5,
       "gap_proxy_pp_all": 2.89
     },
@@ -1183,7 +1183,7 @@
       "export_price_yoy_pct": 3.13,
       "import_price_yoy_pct": -1.47,
       "gap_proxy_pp_5y": 3.76,
-      "gap_proxy_pp_10y": 3.2,
+      "gap_proxy_pp_10y": 3.21,
       "gap_proxy_pp_all": 2.65
     },
     {
@@ -1192,9 +1192,9 @@
       "tot_yoy_pct": 6.49,
       "export_price_yoy_pct": 6.96,
       "import_price_yoy_pct": 5.53,
-      "gap_proxy_pp_5y": 3.53,
+      "gap_proxy_pp_5y": 3.54,
       "gap_proxy_pp_10y": 3.01,
-      "gap_proxy_pp_all": 2.48
+      "gap_proxy_pp_all": 2.49
     },
     {
       "date": "2021-03",
@@ -1203,7 +1203,7 @@
       "export_price_yoy_pct": 13.3,
       "import_price_yoy_pct": 16.39,
       "gap_proxy_pp_5y": 1.93,
-      "gap_proxy_pp_10y": 1.64,
+      "gap_proxy_pp_10y": 1.65,
       "gap_proxy_pp_all": 1.36
     },
     {
@@ -1222,9 +1222,9 @@
       "tot_yoy_pct": -4.27,
       "export_price_yoy_pct": 21.93,
       "import_price_yoy_pct": 23.17,
-      "gap_proxy_pp_5y": -2.32,
+      "gap_proxy_pp_5y": -2.33,
       "gap_proxy_pp_10y": -1.98,
-      "gap_proxy_pp_all": -1.63
+      "gap_proxy_pp_all": -1.64
     },
     {
       "date": "2021-06",
@@ -1252,9 +1252,9 @@
       "tot_yoy_pct": -4.95,
       "export_price_yoy_pct": 21.56,
       "import_price_yoy_pct": 25.13,
-      "gap_proxy_pp_5y": -2.69,
-      "gap_proxy_pp_10y": -2.29,
-      "gap_proxy_pp_all": -1.89
+      "gap_proxy_pp_5y": -2.7,
+      "gap_proxy_pp_10y": -2.3,
+      "gap_proxy_pp_all": -1.9
     },
     {
       "date": "2021-09",
@@ -1272,8 +1272,8 @@
       "tot_yoy_pct": -6.4,
       "export_price_yoy_pct": 22.42,
       "import_price_yoy_pct": 32.56,
-      "gap_proxy_pp_5y": -3.48,
-      "gap_proxy_pp_10y": -2.96,
+      "gap_proxy_pp_5y": -3.49,
+      "gap_proxy_pp_10y": -2.97,
       "gap_proxy_pp_all": -2.45
     },
     {
@@ -1282,8 +1282,8 @@
       "tot_yoy_pct": -10,
       "export_price_yoy_pct": 19.21,
       "import_price_yoy_pct": 28.54,
-      "gap_proxy_pp_5y": -5.43,
-      "gap_proxy_pp_10y": -4.63,
+      "gap_proxy_pp_5y": -5.45,
+      "gap_proxy_pp_10y": -4.64,
       "gap_proxy_pp_all": -3.83
     },
     {
@@ -1292,9 +1292,9 @@
       "tot_yoy_pct": -10.38,
       "export_price_yoy_pct": 15.05,
       "import_price_yoy_pct": 21.47,
-      "gap_proxy_pp_5y": -5.64,
-      "gap_proxy_pp_10y": -4.81,
-      "gap_proxy_pp_all": -3.97
+      "gap_proxy_pp_5y": -5.65,
+      "gap_proxy_pp_10y": -4.82,
+      "gap_proxy_pp_all": -3.98
     },
     {
       "date": "2022-01",
@@ -1302,7 +1302,7 @@
       "tot_yoy_pct": -6.95,
       "export_price_yoy_pct": 13.28,
       "import_price_yoy_pct": 21.64,
-      "gap_proxy_pp_5y": -3.78,
+      "gap_proxy_pp_5y": -3.79,
       "gap_proxy_pp_10y": -3.22,
       "gap_proxy_pp_all": -2.66
     },
@@ -1313,8 +1313,8 @@
       "export_price_yoy_pct": 12.72,
       "import_price_yoy_pct": 22.73,
       "gap_proxy_pp_5y": -4.07,
-      "gap_proxy_pp_10y": -3.46,
-      "gap_proxy_pp_all": -2.86
+      "gap_proxy_pp_10y": -3.47,
+      "gap_proxy_pp_all": -2.87
     },
     {
       "date": "2022-03",
@@ -1322,9 +1322,9 @@
       "tot_yoy_pct": -6.15,
       "export_price_yoy_pct": 15.34,
       "import_price_yoy_pct": 27.38,
-      "gap_proxy_pp_5y": -3.34,
+      "gap_proxy_pp_5y": -3.35,
       "gap_proxy_pp_10y": -2.85,
-      "gap_proxy_pp_all": -2.35
+      "gap_proxy_pp_all": -2.36
     },
     {
       "date": "2022-04",
@@ -1332,8 +1332,8 @@
       "tot_yoy_pct": -10.63,
       "export_price_yoy_pct": 12.19,
       "import_price_yoy_pct": 25.04,
-      "gap_proxy_pp_5y": -5.78,
-      "gap_proxy_pp_10y": -4.92,
+      "gap_proxy_pp_5y": -5.79,
+      "gap_proxy_pp_10y": -4.93,
       "gap_proxy_pp_all": -4.07
     },
     {
@@ -1342,9 +1342,9 @@
       "tot_yoy_pct": -10.19,
       "export_price_yoy_pct": 10.98,
       "import_price_yoy_pct": 23.25,
-      "gap_proxy_pp_5y": -5.54,
-      "gap_proxy_pp_10y": -4.72,
-      "gap_proxy_pp_all": -3.9
+      "gap_proxy_pp_5y": -5.55,
+      "gap_proxy_pp_10y": -4.73,
+      "gap_proxy_pp_all": -3.91
     },
     {
       "date": "2022-06",
@@ -1352,9 +1352,9 @@
       "tot_yoy_pct": -9.98,
       "export_price_yoy_pct": 10.25,
       "import_price_yoy_pct": 19.89,
-      "gap_proxy_pp_5y": -5.42,
-      "gap_proxy_pp_10y": -4.62,
-      "gap_proxy_pp_all": -3.82
+      "gap_proxy_pp_5y": -5.44,
+      "gap_proxy_pp_10y": -4.63,
+      "gap_proxy_pp_all": -3.83
     },
     {
       "date": "2022-07",
@@ -1362,8 +1362,8 @@
       "tot_yoy_pct": -11.2,
       "export_price_yoy_pct": 3.28,
       "import_price_yoy_pct": 12.56,
-      "gap_proxy_pp_5y": -6.09,
-      "gap_proxy_pp_10y": -5.19,
+      "gap_proxy_pp_5y": -6.1,
+      "gap_proxy_pp_10y": -5.2,
       "gap_proxy_pp_all": -4.29
     },
     {
@@ -1372,9 +1372,9 @@
       "tot_yoy_pct": -8.68,
       "export_price_yoy_pct": 1.19,
       "import_price_yoy_pct": 10.73,
-      "gap_proxy_pp_5y": -4.72,
-      "gap_proxy_pp_10y": -4.02,
-      "gap_proxy_pp_all": -3.32
+      "gap_proxy_pp_5y": -4.73,
+      "gap_proxy_pp_10y": -4.03,
+      "gap_proxy_pp_all": -3.33
     },
     {
       "date": "2022-09",
@@ -1382,9 +1382,9 @@
       "tot_yoy_pct": -9.91,
       "export_price_yoy_pct": -1.35,
       "import_price_yoy_pct": 7.58,
-      "gap_proxy_pp_5y": -5.39,
-      "gap_proxy_pp_10y": -4.59,
-      "gap_proxy_pp_all": -3.79
+      "gap_proxy_pp_5y": -5.4,
+      "gap_proxy_pp_10y": -4.6,
+      "gap_proxy_pp_all": -3.8
     },
     {
       "date": "2022-10",
@@ -1392,8 +1392,8 @@
       "tot_yoy_pct": -7.5,
       "export_price_yoy_pct": -3.63,
       "import_price_yoy_pct": 2.1,
-      "gap_proxy_pp_5y": -4.08,
-      "gap_proxy_pp_10y": -3.47,
+      "gap_proxy_pp_5y": -4.09,
+      "gap_proxy_pp_10y": -3.48,
       "gap_proxy_pp_all": -2.87
     },
     {
@@ -1403,7 +1403,7 @@
       "export_price_yoy_pct": -4.27,
       "import_price_yoy_pct": 1.27,
       "gap_proxy_pp_5y": -2.73,
-      "gap_proxy_pp_10y": -2.32,
+      "gap_proxy_pp_10y": -2.33,
       "gap_proxy_pp_all": -1.92
     },
     {
@@ -1412,8 +1412,8 @@
       "tot_yoy_pct": -4.99,
       "export_price_yoy_pct": -4.73,
       "import_price_yoy_pct": 0.95,
-      "gap_proxy_pp_5y": -2.71,
-      "gap_proxy_pp_10y": -2.31,
+      "gap_proxy_pp_5y": -2.72,
+      "gap_proxy_pp_10y": -2.32,
       "gap_proxy_pp_all": -1.91
     },
     {
@@ -1422,8 +1422,8 @@
       "tot_yoy_pct": -5.3,
       "export_price_yoy_pct": -4.65,
       "import_price_yoy_pct": -1.45,
-      "gap_proxy_pp_5y": -2.88,
-      "gap_proxy_pp_10y": -2.45,
+      "gap_proxy_pp_5y": -2.89,
+      "gap_proxy_pp_10y": -2.46,
       "gap_proxy_pp_all": -2.03
     },
     {
@@ -1432,7 +1432,7 @@
       "tot_yoy_pct": -4.62,
       "export_price_yoy_pct": -7.24,
       "import_price_yoy_pct": -5.14,
-      "gap_proxy_pp_5y": -2.51,
+      "gap_proxy_pp_5y": -2.52,
       "gap_proxy_pp_10y": -2.14,
       "gap_proxy_pp_all": -1.77
     },
@@ -1444,7 +1444,7 @@
       "import_price_yoy_pct": -12.01,
       "gap_proxy_pp_5y": -2.79,
       "gap_proxy_pp_10y": -2.38,
-      "gap_proxy_pp_all": -1.96
+      "gap_proxy_pp_all": -1.97
     },
     {
       "date": "2023-04",
@@ -1463,7 +1463,7 @@
       "export_price_yoy_pct": -15.16,
       "import_price_yoy_pct": -15.59,
       "gap_proxy_pp_5y": -1.64,
-      "gap_proxy_pp_10y": -1.39,
+      "gap_proxy_pp_10y": -1.4,
       "gap_proxy_pp_all": -1.15
     },
     {
@@ -1482,7 +1482,7 @@
       "tot_yoy_pct": 4.64,
       "export_price_yoy_pct": -11.9,
       "import_price_yoy_pct": -12.38,
-      "gap_proxy_pp_5y": 2.52,
+      "gap_proxy_pp_5y": 2.53,
       "gap_proxy_pp_10y": 2.15,
       "gap_proxy_pp_all": 1.78
     },
@@ -1492,8 +1492,8 @@
       "tot_yoy_pct": 3.81,
       "export_price_yoy_pct": -8.38,
       "import_price_yoy_pct": -9.16,
-      "gap_proxy_pp_5y": 2.07,
-      "gap_proxy_pp_10y": 1.76,
+      "gap_proxy_pp_5y": 2.08,
+      "gap_proxy_pp_10y": 1.77,
       "gap_proxy_pp_all": 1.46
     },
     {
@@ -1533,7 +1533,7 @@
       "export_price_yoy_pct": -3.32,
       "import_price_yoy_pct": -4.29,
       "gap_proxy_pp_5y": 0.98,
-      "gap_proxy_pp_10y": 0.83,
+      "gap_proxy_pp_10y": 0.84,
       "gap_proxy_pp_all": 0.69
     },
     {
@@ -1542,7 +1542,7 @@
       "tot_yoy_pct": 2.51,
       "export_price_yoy_pct": -2.15,
       "import_price_yoy_pct": -4.25,
-      "gap_proxy_pp_5y": 1.36,
+      "gap_proxy_pp_5y": 1.37,
       "gap_proxy_pp_10y": 1.16,
       "gap_proxy_pp_all": 0.96
     },
@@ -1552,9 +1552,9 @@
       "tot_yoy_pct": 4.11,
       "export_price_yoy_pct": -0.13,
       "import_price_yoy_pct": -3.98,
-      "gap_proxy_pp_5y": 2.23,
-      "gap_proxy_pp_10y": 1.9,
-      "gap_proxy_pp_all": 1.57
+      "gap_proxy_pp_5y": 2.24,
+      "gap_proxy_pp_10y": 1.91,
+      "gap_proxy_pp_all": 1.58
     },
     {
       "date": "2024-03",
@@ -1572,9 +1572,9 @@
       "tot_yoy_pct": 5.34,
       "export_price_yoy_pct": 3.48,
       "import_price_yoy_pct": 0.28,
-      "gap_proxy_pp_5y": 2.9,
-      "gap_proxy_pp_10y": 2.47,
-      "gap_proxy_pp_all": 2.04
+      "gap_proxy_pp_5y": 2.91,
+      "gap_proxy_pp_10y": 2.48,
+      "gap_proxy_pp_all": 2.05
     },
     {
       "date": "2024-05",
@@ -1582,7 +1582,7 @@
       "tot_yoy_pct": 4.68,
       "export_price_yoy_pct": 5.17,
       "import_price_yoy_pct": 2.75,
-      "gap_proxy_pp_5y": 2.54,
+      "gap_proxy_pp_5y": 2.55,
       "gap_proxy_pp_10y": 2.17,
       "gap_proxy_pp_all": 1.79
     },
@@ -1632,7 +1632,7 @@
       "tot_yoy_pct": 3.89,
       "export_price_yoy_pct": 0.75,
       "import_price_yoy_pct": -3.29,
-      "gap_proxy_pp_5y": 2.11,
+      "gap_proxy_pp_5y": 2.12,
       "gap_proxy_pp_10y": 1.8,
       "gap_proxy_pp_all": 1.49
     },
@@ -1643,7 +1643,7 @@
       "export_price_yoy_pct": 0.93,
       "import_price_yoy_pct": -2.73,
       "gap_proxy_pp_5y": 2.4,
-      "gap_proxy_pp_10y": 2.04,
+      "gap_proxy_pp_10y": 2.05,
       "gap_proxy_pp_all": 1.69
     },
     {
@@ -1654,7 +1654,7 @@
       "import_price_yoy_pct": -1.7,
       "gap_proxy_pp_5y": 2.58,
       "gap_proxy_pp_10y": 2.2,
-      "gap_proxy_pp_all": 1.81
+      "gap_proxy_pp_all": 1.82
     },
     {
       "date": "2025-01",
@@ -1712,8 +1712,8 @@
       "tot_yoy_pct": 4,
       "export_price_yoy_pct": -4.18,
       "import_price_yoy_pct": -6.24,
-      "gap_proxy_pp_5y": 2.17,
-      "gap_proxy_pp_10y": 1.85,
+      "gap_proxy_pp_5y": 2.18,
+      "gap_proxy_pp_10y": 1.86,
       "gap_proxy_pp_all": 1.53
     },
     {
@@ -1742,7 +1742,7 @@
       "tot_yoy_pct": 3.19,
       "export_price_yoy_pct": -2.14,
       "import_price_yoy_pct": -3.42,
-      "gap_proxy_pp_5y": 1.73,
+      "gap_proxy_pp_5y": 1.74,
       "gap_proxy_pp_10y": 1.48,
       "gap_proxy_pp_all": 1.22
     },
@@ -1752,9 +1752,9 @@
       "tot_yoy_pct": 3.85,
       "export_price_yoy_pct": 0.09,
       "import_price_yoy_pct": -3.98,
-      "gap_proxy_pp_5y": 2.09,
-      "gap_proxy_pp_10y": 1.78,
-      "gap_proxy_pp_all": 1.47
+      "gap_proxy_pp_5y": 2.1,
+      "gap_proxy_pp_10y": 1.79,
+      "gap_proxy_pp_all": 1.48
     },
     {
       "date": "2025-11",
@@ -1762,7 +1762,7 @@
       "tot_yoy_pct": 5.82,
       "export_price_yoy_pct": 1.85,
       "import_price_yoy_pct": -2.68,
-      "gap_proxy_pp_5y": 3.16,
+      "gap_proxy_pp_5y": 3.17,
       "gap_proxy_pp_10y": 2.7,
       "gap_proxy_pp_all": 2.23
     },
@@ -1772,9 +1772,9 @@
       "tot_yoy_pct": 5.05,
       "export_price_yoy_pct": 2.21,
       "import_price_yoy_pct": -2.17,
-      "gap_proxy_pp_5y": 2.74,
+      "gap_proxy_pp_5y": 2.75,
       "gap_proxy_pp_10y": 2.34,
-      "gap_proxy_pp_all": 1.93
+      "gap_proxy_pp_all": 1.94
     },
     {
       "date": "2026-01",
@@ -1782,9 +1782,9 @@
       "tot_yoy_pct": 8.91,
       "export_price_yoy_pct": 6.99,
       "import_price_yoy_pct": -1.76,
-      "gap_proxy_pp_5y": 4.84,
+      "gap_proxy_pp_5y": 4.85,
       "gap_proxy_pp_10y": 4.13,
-      "gap_proxy_pp_all": 3.41
+      "gap_proxy_pp_all": 3.42
     },
     {
       "date": "2026-02",
@@ -1792,8 +1792,8 @@
       "tot_yoy_pct": 13.03,
       "export_price_yoy_pct": 10.14,
       "import_price_yoy_pct": 0.68,
-      "gap_proxy_pp_5y": 7.08,
-      "gap_proxy_pp_10y": 6.03,
+      "gap_proxy_pp_5y": 7.1,
+      "gap_proxy_pp_10y": 6.05,
       "gap_proxy_pp_all": 4.99
     },
     {
@@ -1802,9 +1802,9 @@
       "tot_yoy_pct": 22.84,
       "export_price_yoy_pct": 26.65,
       "import_price_yoy_pct": 17.94,
-      "gap_proxy_pp_5y": 12.41,
-      "gap_proxy_pp_10y": 10.58,
-      "gap_proxy_pp_all": 8.74
+      "gap_proxy_pp_5y": 12.44,
+      "gap_proxy_pp_10y": 10.6,
+      "gap_proxy_pp_all": 8.75
     },
     {
       "date": "2026-04",
@@ -1812,9 +1812,9 @@
       "tot_yoy_pct": 14.34,
       "export_price_yoy_pct": 37.31,
       "import_price_yoy_pct": 17.48,
-      "gap_proxy_pp_5y": 7.79,
-      "gap_proxy_pp_10y": 6.64,
-      "gap_proxy_pp_all": 5.49
+      "gap_proxy_pp_5y": 7.81,
+      "gap_proxy_pp_10y": 6.65,
+      "gap_proxy_pp_all": 5.5
     },
     {
       "date": "2026-05",
@@ -1822,9 +1822,9 @@
       "tot_yoy_pct": 18.62,
       "export_price_yoy_pct": 37.96,
       "import_price_yoy_pct": 18.18,
-      "gap_proxy_pp_5y": 10.12,
-      "gap_proxy_pp_10y": 8.62,
-      "gap_proxy_pp_all": 7.13
+      "gap_proxy_pp_5y": 10.14,
+      "gap_proxy_pp_10y": 8.64,
+      "gap_proxy_pp_all": 7.14
     },
     {
       "date": "2026-06",
@@ -1832,9 +1832,9 @@
       "tot_yoy_pct": 15.47,
       "export_price_yoy_pct": 33.9,
       "import_price_yoy_pct": 9.7,
-      "gap_proxy_pp_5y": 8.41,
-      "gap_proxy_pp_10y": 7.16,
-      "gap_proxy_pp_all": 5.92
+      "gap_proxy_pp_5y": 8.43,
+      "gap_proxy_pp_10y": 7.18,
+      "gap_proxy_pp_all": 5.93
     },
     {
       "date": "2026-07",
@@ -1842,9 +1842,9 @@
       "tot_yoy_pct": 24.73,
       "export_price_yoy_pct": 37.77,
       "import_price_yoy_pct": 10.38,
-      "gap_proxy_pp_5y": 13.44,
-      "gap_proxy_pp_10y": 11.45,
-      "gap_proxy_pp_all": 9.47
+      "gap_proxy_pp_5y": 13.47,
+      "gap_proxy_pp_10y": 11.47,
+      "gap_proxy_pp_all": 9.48
     }
   ],
   "quarterly": [
@@ -1853,14 +1853,14 @@
       "gdp_yoy_pct": 3.11,
       "gdi_yoy_pct": 0.67,
       "gap_actual_pp": -2.44,
-      "gap_proxy_pp_10y": -5.44
+      "gap_proxy_pp_10y": -5.45
     },
     {
       "quarter": "2011Q4",
       "gdp_yoy_pct": 2.57,
       "gdi_yoy_pct": 0.67,
       "gap_actual_pp": -1.9,
-      "gap_proxy_pp_10y": -4.62
+      "gap_proxy_pp_10y": -4.63
     },
     {
       "quarter": "2012Q1",
@@ -1902,21 +1902,21 @@
       "gdp_yoy_pct": 3.05,
       "gdi_yoy_pct": 4.76,
       "gap_actual_pp": 1.71,
-      "gap_proxy_pp_10y": 2.81
+      "gap_proxy_pp_10y": 2.82
     },
     {
       "quarter": "2013Q3",
       "gdp_yoy_pct": 3.69,
       "gdi_yoy_pct": 4.43,
       "gap_actual_pp": 0.74,
-      "gap_proxy_pp_10y": 1.02
+      "gap_proxy_pp_10y": 1.03
     },
     {
       "quarter": "2013Q4",
       "gdp_yoy_pct": 4.02,
       "gdi_yoy_pct": 4.8,
       "gap_actual_pp": 0.78,
-      "gap_proxy_pp_10y": 1.47
+      "gap_proxy_pp_10y": 1.48
     },
     {
       "quarter": "2014Q1",
@@ -1951,28 +1951,28 @@
       "gdp_yoy_pct": 2.66,
       "gdi_yoy_pct": 6.42,
       "gap_actual_pp": 3.76,
-      "gap_proxy_pp_10y": 4.99
+      "gap_proxy_pp_10y": 5
     },
     {
       "quarter": "2015Q2",
       "gdp_yoy_pct": 1.93,
       "gdi_yoy_pct": 5.9,
       "gap_actual_pp": 3.97,
-      "gap_proxy_pp_10y": 5.63
+      "gap_proxy_pp_10y": 5.64
     },
     {
       "quarter": "2015Q3",
       "gdp_yoy_pct": 3.46,
       "gdi_yoy_pct": 7.5,
       "gap_actual_pp": 4.04,
-      "gap_proxy_pp_10y": 5.52
+      "gap_proxy_pp_10y": 5.53
     },
     {
       "quarter": "2015Q4",
       "gdp_yoy_pct": 3.59,
       "gdi_yoy_pct": 7.01,
       "gap_actual_pp": 3.42,
-      "gap_proxy_pp_10y": 4.5
+      "gap_proxy_pp_10y": 4.51
     },
     {
       "quarter": "2016Q1",
@@ -2007,7 +2007,7 @@
       "gdp_yoy_pct": 3.46,
       "gdi_yoy_pct": 2.55,
       "gap_actual_pp": -0.91,
-      "gap_proxy_pp_10y": -1.24
+      "gap_proxy_pp_10y": -1.25
     },
     {
       "quarter": "2017Q2",
@@ -2049,14 +2049,14 @@
       "gdp_yoy_pct": 2.6,
       "gdi_yoy_pct": 0.72,
       "gap_actual_pp": -1.88,
-      "gap_proxy_pp_10y": -3.59
+      "gap_proxy_pp_10y": -3.6
     },
     {
       "quarter": "2018Q4",
       "gdp_yoy_pct": 3.55,
       "gdi_yoy_pct": 1.69,
       "gap_actual_pp": -1.86,
-      "gap_proxy_pp_10y": -3.68
+      "gap_proxy_pp_10y": -3.69
     },
     {
       "quarter": "2019Q1",
@@ -2098,7 +2098,7 @@
       "gdp_yoy_pct": -2.64,
       "gdi_yoy_pct": -1.6,
       "gap_actual_pp": 1.04,
-      "gap_proxy_pp_10y": 3.43
+      "gap_proxy_pp_10y": 3.44
     },
     {
       "quarter": "2020Q3",
@@ -2112,7 +2112,7 @@
       "gdp_yoy_pct": -0.45,
       "gdi_yoy_pct": 1.52,
       "gap_actual_pp": 1.97,
-      "gap_proxy_pp_10y": 3.57
+      "gap_proxy_pp_10y": 3.58
     },
     {
       "quarter": "2021Q1",
@@ -2140,7 +2140,7 @@
       "gdp_yoy_pct": 4.49,
       "gdi_yoy_pct": 1.9,
       "gap_actual_pp": -2.59,
-      "gap_proxy_pp_10y": -4.13
+      "gap_proxy_pp_10y": -4.14
     },
     {
       "quarter": "2022Q1",
@@ -2154,28 +2154,28 @@
       "gdp_yoy_pct": 3.28,
       "gdi_yoy_pct": -0.21,
       "gap_actual_pp": -3.49,
-      "gap_proxy_pp_10y": -4.75
+      "gap_proxy_pp_10y": -4.76
     },
     {
       "quarter": "2022Q3",
       "gdp_yoy_pct": 3.66,
       "gdi_yoy_pct": -1.04,
       "gap_actual_pp": -4.7,
-      "gap_proxy_pp_10y": -4.6
+      "gap_proxy_pp_10y": -4.61
     },
     {
       "quarter": "2022Q4",
       "gdp_yoy_pct": 1.22,
       "gdi_yoy_pct": -1.71,
       "gap_actual_pp": -2.93,
-      "gap_proxy_pp_10y": -2.7
+      "gap_proxy_pp_10y": -2.71
     },
     {
       "quarter": "2023Q1",
       "gdp_yoy_pct": 1.06,
       "gdi_yoy_pct": -1.14,
       "gap_actual_pp": -2.2,
-      "gap_proxy_pp_10y": -2.32
+      "gap_proxy_pp_10y": -2.33
     },
     {
       "quarter": "2023Q2",
@@ -2189,42 +2189,42 @@
       "gdp_yoy_pct": 1.59,
       "gdi_yoy_pct": 3.37,
       "gap_actual_pp": 1.78,
-      "gap_proxy_pp_10y": 1.92
+      "gap_proxy_pp_10y": 1.93
     },
     {
       "quarter": "2023Q4",
       "gdp_yoy_pct": 2.53,
       "gdi_yoy_pct": 4.34,
       "gap_actual_pp": 1.81,
-      "gap_proxy_pp_10y": 0.52
+      "gap_proxy_pp_10y": 0.53
     },
     {
       "quarter": "2024Q1",
       "gdp_yoy_pct": 3.65,
       "gdi_yoy_pct": 6.73,
       "gap_actual_pp": 3.08,
-      "gap_proxy_pp_10y": 1.86
+      "gap_proxy_pp_10y": 1.87
     },
     {
       "quarter": "2024Q2",
       "gdp_yoy_pct": 2.55,
       "gdi_yoy_pct": 5.33,
       "gap_actual_pp": 2.78,
-      "gap_proxy_pp_10y": 2.04
+      "gap_proxy_pp_10y": 2.05
     },
     {
       "quarter": "2024Q3",
       "gdp_yoy_pct": 1.65,
       "gdi_yoy_pct": 3.02,
       "gap_actual_pp": 1.37,
-      "gap_proxy_pp_10y": 0.63
+      "gap_proxy_pp_10y": 0.64
     },
     {
       "quarter": "2024Q4",
       "gdp_yoy_pct": 1.06,
       "gdi_yoy_pct": 2.26,
       "gap_actual_pp": 1.2,
-      "gap_proxy_pp_10y": 2.01
+      "gap_proxy_pp_10y": 2.02
     },
     {
       "quarter": "2025Q1",
@@ -2245,28 +2245,28 @@
       "gdp_yoy_pct": 2.09,
       "gdi_yoy_pct": 2.68,
       "gap_actual_pp": 0.59,
-      "gap_proxy_pp_10y": 1.2
+      "gap_proxy_pp_10y": 1.21
     },
     {
       "quarter": "2025Q4",
       "gdp_yoy_pct": 1.55,
       "gdi_yoy_pct": 3.5,
       "gap_actual_pp": 1.95,
-      "gap_proxy_pp_10y": 2.27
+      "gap_proxy_pp_10y": 2.28
     },
     {
       "quarter": "2026Q1",
       "gdp_yoy_pct": 3.78,
       "gdi_yoy_pct": 13.18,
       "gap_actual_pp": 9.4,
-      "gap_proxy_pp_10y": 6.91
+      "gap_proxy_pp_10y": 6.93
     },
     {
       "quarter": "2026Q2",
-      "gdp_yoy_pct": 3.73,
-      "gdi_yoy_pct": 15.57,
-      "gap_actual_pp": 11.84,
-      "gap_proxy_pp_10y": 7.48
+      "gdp_yoy_pct": 3.74,
+      "gdi_yoy_pct": 15.66,
+      "gap_actual_pp": 11.92,
+      "gap_proxy_pp_10y": 7.49
     }
   ]
 }
