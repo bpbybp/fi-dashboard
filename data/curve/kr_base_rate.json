@@ -1,7 +1,7 @@
 {
   "meta": {
     "module": "CP",
-    "updated_at": "2026-09-08",
+    "updated_at": "2026-09-09",
     "source": "ECOS",
     "cycle": "D",
     "unit": "연%",
@@ -33149,6 +33149,10 @@
     },
     {
       "date": "2026-09-08",
+      "rate": 3
+    },
+    {
+      "date": "2026-09-09",
       "rate": 3
     }
   ]
