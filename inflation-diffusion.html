@@ -30,6 +30,16 @@
   #sample-badge.show { display: block; }
   #sample-badge .sub { font-weight: 400; color: #c9a227; }
 
+  /* 데이터 신선도 칩 — 중립 톤, 활성 탭 국가만 테두리 강조. 판단 문구 없음 */
+  .fresh { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 0 0 14px; }
+  .fchip { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 6px 9px;
+    font-size: 11px; line-height: 1.45; color: var(--muted); font-family: var(--mono); min-width: 0; }
+  .fchip span { display: inline-block; margin-right: 6px; white-space: nowrap; }
+  .fchip .fl { color: var(--text); font-weight: 700; font-family: var(--sans); }
+  .fchip .lag { color: var(--text); }
+  .fchip.active { border-color: var(--accent); }
+  @media (max-width: 640px) { .fresh { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+
   /* 국가 탭 */
   .tabs { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
   .tabs button { font-size: 13px; padding: 6px 15px; border-radius: 8px; border: 1px solid var(--border-2);
@@ -115,6 +125,9 @@
     <span class="ctx">FI Dashboard · 물가가 얼마나 넓게 오르나 (미국·한국·유럽·호주·일본)</span>
   </div>
 
+  <!-- 데이터 신선도: 국가별 기준월 · 갱신일 (js/freshness.js) -->
+  <div class="fresh" id="freshness" aria-label="국가별 데이터 기준월과 갱신일"></div>
+
   <div id="sample-badge">
     🧪 이 국가는 샘플 데이터로 표시 중
     <span class="sub">— 실측 데이터 생성 전 미리보기입니다. 해당 국가 실데이터가 커밋되면 이 탭에서 배지가 자동으로 사라집니다.</span>
@@ -187,6 +200,53 @@
 <script src="tests/fixtures/inflation-diffusion-au.fixture.js"></script>
 <script src="tests/fixtures/inflation-diffusion-jp.fixture.js"></script>
 <script src="tests/fixtures/trimmed-us.fixture.js"></script>
+<!-- 데이터 신선도 칩 (페이지 로직과 분리 — 이 블록 실패해도 본문 렌더 무영향) -->
+<script type="module">
+  import { freshness, todayKst } from './js/freshness.js';
+
+  // 기대 발표 캐던스 — 기준월 M 자료가 M+1월 releaseDay까지 나온다고 보는 근사.
+  // (발표 요일이 매월 달라 실제 발표일보다 약간 늦은 쪽으로 잡음)
+  const CADENCE = {
+    'US-CPI': { releaseDay: 15 },     // BLS CPI: 익월 10~15일경
+    'US-PCE': { releaseDay: 'eom' },  // BEA Personal Income and Outlays: 익월 말경
+    KR: { releaseDay: 5 },            // 통계청 소비자물가동향: 익월 첫째 주
+    EU: { releaseDay: 17 },           // Eurostat HICP final(품목 leaf): 익월 중순 (flash는 헤드라인만)
+    AU: { releaseDay: 'eom' },        // ABS Monthly CPI Indicator: 익월 마지막 수요일경
+    JP: { releaseDay: 19 },           // 총무성 전국 CPI: 익월 셋째 주 금요일경
+    Trimmed: { releaseDay: 15 },      // 클리블랜드 연은 Median/Trimmed CPI: BLS CPI 발표 당일
+  };
+  const CHIPS = [
+    { label: 'US-CPI', tab: 'US', keys: ['inflation-diffusion-us-cpi'] },
+    { label: 'US-PCE', tab: 'US', keys: ['inflation-diffusion-us-pce'] },
+    { label: 'KR', tab: 'KR', keys: ['inflation-diffusion-kr'] },
+    { label: 'EU', tab: 'EU', keys: ['inflation-diffusion-eu'] },
+    { label: 'AU', tab: 'AU', keys: ['inflation-diffusion-au'] },
+    { label: 'JP', tab: 'JP', keys: ['inflation-diffusion-jp'] },
+    { label: 'Trimmed', tab: 'US', keys: ['trimmed-pce-dallas', 'median-cpi-cleveland', 'trimmed-cpi-cleveland'] },
+  ];
+
+  // 실데이터(FENRIR_SERIES)만 대상 — 픽스처는 기준월로 표시하지 않음.
+  const REAL = window.FENRIR_SERIES || {};
+  const lastOf = (p) => { const a = p.series || p.data || []; return a.length ? a[a.length - 1].period : null; };
+  const maxOf = (arr) => arr.filter(Boolean).sort().pop() || null;
+  const today = todayKst();
+
+  const el = document.getElementById('freshness');
+  function render(activeTab) {
+    el.innerHTML = CHIPS.map((c) => {
+      const payloads = c.keys.map((k) => REAL[k]).filter(Boolean);
+      const cls = `fchip${c.tab === activeTab ? ' active' : ''}`;
+      if (!payloads.length) return `<div class="${cls}"><span class="fl">${c.label}</span><span>미적재</span></div>`;
+      const f = freshness(maxOf(payloads.map(lastOf)), maxOf(payloads.map((p) => p.meta && p.meta.updated_on)),
+        CADENCE[c.label], today);
+      return `<div class="${cls}"><span class="fl">${c.label}</span><span>${f.period || '—'}</span>` +
+        `<span>갱신 ${f.updated || '—'}</span>` +
+        (f.lagMonths > 0 ? `<span class="lag">지연 ${f.lagMonths}개월</span>` : '') + `</div>`;
+    }).join('');
+  }
+  render((location.hash || '#US').slice(1).toUpperCase());
+  window.addEventListener('diffusion:country', (e) => render(e.detail));
+</script>
 <!-- 페이지 로직 (외부 import 없음 → file:// 안전, 전역만 소비) -->
 <script type="module">
   const REAL = window.FENRIR_SERIES || {};
@@ -240,6 +300,8 @@
 
   function renderCountry() {
     const c = current;
+    // 신선도 칩 활성 국가 동기화 (칩 블록이 구독, 스텁 환경에선 무시)
+    if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new CustomEvent('diffusion:country', { detail: c.id }));
     const primary = c._primary;
     const pce = c._pce || null;
     // 배지: 현재 탭이 픽스처(또는 US의 trimmed가 픽스처)일 때만 표시 → 실데이터 탭은 소멸.
