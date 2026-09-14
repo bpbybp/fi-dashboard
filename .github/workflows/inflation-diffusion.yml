@@ -15,7 +15,7 @@ name: Inflation Diffusion data (US·KR·EU·AU·JP + trimmed)
 
 on:
   schedule:
-    - cron: '0 0 12,15 * *'   # 매월 12·15일 00:00 UTC (미국 CPI 발표 주간 커버)
+    - cron: '0 21 * * *'      # 매일 21:00 UTC = 06:00 KST (데이터 불변이면 파일·커밋 없음)
   workflow_dispatch: {}         # 수동 트리거 (발표 당일 갱신용)
 
 permissions:

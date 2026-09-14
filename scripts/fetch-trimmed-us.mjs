@@ -14,10 +14,11 @@
 // 실행:  FRED_API_KEY=xxxx node scripts/fetch-trimmed-us.mjs
 //    (키 필요 게이트 — 회사 PC 미저장 원칙. 개인 노트북에서 실행·검증.)
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fetchWithRetry } from './lib/fetch-retry.mjs';
+import { writeStampedFile, withUpdatedOn } from './lib/diffusion-pipeline.mjs';
 
 // 백필 시작: 15년+ 확보 (다른 물가 모듈과 정합). rate 시계열이라 크기 작음.
 const OBSERVATION_START = '2009-01-01';
@@ -129,15 +130,15 @@ async function main() {
 
   const banner = `// data/trimmed-us.js — "튀는 품목을 빼고 본 미국 물가" 3종 (FRED).\n` +
     `// scripts/fetch-trimmed-us.mjs 생성. 자동 생성물 — 직접 편집 금지.\n`;
-  const body = serializeTrimmed(registrations, banner);
-
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   const dataDir = join(scriptDir, '..', 'data');
   mkdirSync(dataDir, { recursive: true });
   const outPath = join(dataDir, 'trimmed-us.js');
-  writeFileSync(outPath, body, 'utf8');
+  // meta.updated_on은 데이터 변경 시에만 오늘(KST) — 불변이면 파일 미기록.
+  const { body, changed, updatedOn } = writeStampedFile(outPath,
+    (on) => serializeTrimmed(withUpdatedOn(registrations, on), banner));
   console.error(`[trimmed-us] 출력 크기 ${(Buffer.byteLength(body, 'utf8') / 1024).toFixed(1)}KB`);
-  console.error(`[trimmed-us] 저장 완료 → ${outPath}`);
+  console.error(`[trimmed-us] ${changed ? `데이터 변경 → 저장 완료 (updated_on=${updatedOn})` : `데이터 불변 → 파일 미기록 (updated_on=${updatedOn})`} → ${outPath}`);
 }
 
 // CLI로 직접 실행할 때만 fetch (테스트·픽스처 생성 시 import는 main 미실행).

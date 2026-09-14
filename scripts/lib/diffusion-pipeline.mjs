@@ -3,7 +3,7 @@
 // US·EU·AU·KR fetch 스크립트가 공유 (단일 구현 → 국가 간 방법론 드리프트 방지).
 // buildRecord/z-score/flash 방법론은 diffusion-core.mjs (Fenrir 이식본) 기준.
 
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { buildRecord } from './diffusion-core.mjs';
 
 export const BACKFILL_MONTHS = 60;        // 5y + 1y z-score warmup (Fenrir DEFAULT_BACKFILL_MONTHS)
@@ -104,12 +104,46 @@ export function serializeRegistration(key, payload, globalName = 'FENRIR_SERIES'
     `window.${globalName}[${JSON.stringify(key)}] = ${JSON.stringify(payload)};\n`;
 }
 
+// KST 오늘 'YYYY-MM-DD' (meta.updated_on용).
+export function todayKst(now = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(now);
+}
+
+// 각 등록 payload.meta에 updated_on을 붙인 사본 (원본 payload 불변).
+export function withUpdatedOn(entries, updatedOn) {
+  return entries.map((e) => ({ ...e, payload: { ...e.payload, meta: { ...e.payload.meta, updated_on: updatedOn } } }));
+}
+
+// meta.updated_on(갱신일)은 데이터가 바뀔 때만 오늘로. 기존 파일의 updated_on으로
+// 다시 렌더한 결과가 기존 파일과 같으면 = 데이터 불변 → 파일을 건드리지 않음(git diff 없음).
+// 기존 파일에 updated_on이 없으면(도입 전 파일) 1회 오늘로 기록.
+// render(updatedOn) → 파일 본문. 반환 {body, changed, updatedOn}.
+const UPDATED_ON_RE = /"updated_on":"(\d{4}-\d{2}-\d{2})"/;
+export function resolveStampedBody(prevBody, render, today) {
+  const prevOn = prevBody?.match(UPDATED_ON_RE)?.[1] ?? null;
+  if (prevOn) {
+    const same = render(prevOn);
+    if (same === prevBody) return { body: same, changed: false, updatedOn: prevOn };
+  }
+  return { body: render(today), changed: true, updatedOn: today };
+}
+
+export function writeStampedFile(path, render, today = todayKst()) {
+  const prev = existsSync(path) ? readFileSync(path, 'utf8') : null;
+  const r = resolveStampedBody(prev, render, today);
+  if (r.changed) writeFileSync(path, r.body, 'utf8');
+  return r;
+}
+
 // entries: [{key, payload}]. banner + 각 등록 직렬화 → 500KB 가드 → 파일 기록.
-// 초과 시 임의 축소 없이 throw (호출자가 중단·보고). 반환 {bytes, path}.
-export function writeDataFile({ dataDir, fileName, banner, entries, sizeLimit = DETAIL_SIZE_LIMIT, logTag = 'diffusion' }) {
-  let body = banner;
-  for (const e of entries) body += serializeRegistration(e.key, e.payload);
-  const bytes = Buffer.byteLength(body, 'utf8');
+// 초과 시 임의 축소 없이 throw (호출자가 중단·보고). 반환 {bytes, path, changed, updatedOn}.
+export function writeDataFile({ dataDir, fileName, banner, entries, sizeLimit = DETAIL_SIZE_LIMIT, logTag = 'diffusion', today }) {
+  const render = (updatedOn) => {
+    let body = banner;
+    for (const e of withUpdatedOn(entries, updatedOn)) body += serializeRegistration(e.key, e.payload);
+    return body;
+  };
+  const bytes = Buffer.byteLength(render('0000-00-00'), 'utf8');
   if (bytes > sizeLimit) {
     throw new Error(
       `[${logTag}] ⛔ 파일 ${(bytes / 1024).toFixed(1)}KB > ${sizeLimit / 1024}KB 초과. 임의 축소하지 않고 중단.\n` +
@@ -117,6 +151,7 @@ export function writeDataFile({ dataDir, fileName, banner, entries, sizeLimit = 
   }
   mkdirSync(dataDir, { recursive: true });
   const path = `${dataDir}/${fileName}`;
-  writeFileSync(path, body, 'utf8');
-  return { bytes, path };
+  const { changed, updatedOn } = writeStampedFile(path, render, today);
+  console.error(`[${logTag}] ${changed ? `데이터 변경 → updated_on=${updatedOn}` : `데이터 불변 → 파일 미기록 (updated_on=${updatedOn})`}`);
+  return { bytes, path, changed, updatedOn };
 }
