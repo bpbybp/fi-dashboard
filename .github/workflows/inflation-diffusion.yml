@@ -4,8 +4,13 @@ name: Inflation Diffusion data (US·KR·EU·AU·JP + trimmed)
 # data/inflation-diffusion-*.js · data/trimmed-us.js 갱신.
 # 데이터가 실제로 바뀐 경우에만 커밋(diff 없으면 skip).
 #
-# 시크릿 부재 시 해당 국가만 skip하고 나머지는 계속 진행(가드) →
-# EU·AU(무인증)는 시크릿 등록 전에도 Actions가 돌 수 있음.
+# 결과 가시화:
+#  - 시크릿 부재로 skip한 경우만 exit 0(result=skipped).
+#  - 스크립트 실패는 스텝 실패로 남기되 continue-on-error로 다음 국가 계속.
+#  - 각 스텝은 outputs.result(new/unchanged/skipped/failed:사유) 기록
+#    (scripts/ci/diffusion-step.sh).
+#  - 성공 국가는 먼저 커밋, 마지막 Summary가 국가별 표를 출력하고 failed가 있으면
+#    워크플로 결론을 실패로 만든다.
 # 계산은 Actions에서 사전 수행, 페이지는 렌더만 (무빌드 정적 원칙).
 
 on:
@@ -34,15 +39,18 @@ jobs:
 
       # ── 무인증(EU·AU): 시크릿 없이 항상 실행 ──
       - name: EU (Eurostat, 무인증)
+        id: eu
         continue-on-error: true
-        run: node scripts/fetch-inflation-diffusion-eu.mjs
+        run: bash scripts/ci/diffusion-step.sh data/inflation-diffusion-eu.js scripts/fetch-inflation-diffusion-eu.mjs
 
       - name: AU (ABS, 무인증)
+        id: au
         continue-on-error: true
-        run: node scripts/fetch-inflation-diffusion-au.mjs
+        run: bash scripts/ci/diffusion-step.sh data/inflation-diffusion-au.js scripts/fetch-inflation-diffusion-au.mjs
 
       # ── 인증 필요: 시크릿 부재 시 해당 국가만 skip(exit 0), 나머지는 계속 ──
       - name: US (BLS + BEA)
+        id: us
         continue-on-error: true
         env:
           BLS_API_KEY: ${{ secrets.BLS_API_KEY }}
@@ -50,44 +58,53 @@ jobs:
         run: |
           if [ -z "$BLS_API_KEY" ] || [ -z "$BEA_API_KEY" ]; then
             echo "⏭  US skip — BLS_API_KEY/BEA_API_KEY 시크릿 미등록"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          node scripts/fetch-inflation-diffusion-us.mjs
+          bash scripts/ci/diffusion-step.sh data/inflation-diffusion-us.js scripts/fetch-inflation-diffusion-us.mjs
 
       - name: KR (KOSIS)
+        id: kr
         continue-on-error: true
         env:
           KOSIS_API_KEY: ${{ secrets.KOSIS_API_KEY }}
         run: |
           if [ -z "$KOSIS_API_KEY" ]; then
             echo "⏭  KR skip — KOSIS_API_KEY 시크릿 미등록"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          node scripts/fetch-inflation-diffusion-kr.mjs
+          bash scripts/ci/diffusion-step.sh data/inflation-diffusion-kr.js scripts/fetch-inflation-diffusion-kr.mjs
 
       - name: JP (e-Stat)
+        id: jp
         continue-on-error: true
         env:
           ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
         run: |
           if [ -z "$ESTAT_APP_ID" ]; then
             echo "⏭  JP skip — ESTAT_APP_ID 시크릿 미등록"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          node scripts/fetch-inflation-diffusion-jp.mjs
+          bash scripts/ci/diffusion-step.sh data/inflation-diffusion-jp.js scripts/fetch-inflation-diffusion-jp.mjs
 
       - name: Trimmed 3종 (FRED)
+        id: trimmed
         continue-on-error: true
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
           if [ -z "$FRED_API_KEY" ]; then
             echo "⏭  Trimmed skip — FRED_API_KEY 시크릿 미등록"
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          node scripts/fetch-trimmed-us.mjs
+          bash scripts/ci/diffusion-step.sh data/trimmed-us.js scripts/fetch-trimmed-us.mjs
 
+      # 실패 국가가 있어도 성공 국가 파일은 커밋 (Summary보다 먼저).
       - name: Commit if changed
+        id: commit
         run: |
           # 생성/갱신된 파일만 개별 스테이징(신규 untracked 포함). 일부 국가가 skip돼
           # 파일이 없어도 나머지가 정상 스테이징되도록 파일별로 add(한 번에 add하면
@@ -112,3 +129,22 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "data: 물가 확산지수 갱신 (${FILES})"
           git push
+
+      # 국가별 결과표 → $GITHUB_STEP_SUMMARY. failed(또는 커밋 실패) 있으면 exit 1.
+      - name: Summary
+        if: always()
+        env:
+          RESULT_US: ${{ steps.us.outputs.result }}
+          OUTCOME_US: ${{ steps.us.outcome }}
+          RESULT_KR: ${{ steps.kr.outputs.result }}
+          OUTCOME_KR: ${{ steps.kr.outcome }}
+          RESULT_EU: ${{ steps.eu.outputs.result }}
+          OUTCOME_EU: ${{ steps.eu.outcome }}
+          RESULT_AU: ${{ steps.au.outputs.result }}
+          OUTCOME_AU: ${{ steps.au.outcome }}
+          RESULT_JP: ${{ steps.jp.outputs.result }}
+          OUTCOME_JP: ${{ steps.jp.outcome }}
+          RESULT_TRIMMED: ${{ steps.trimmed.outputs.result }}
+          OUTCOME_TRIMMED: ${{ steps.trimmed.outcome }}
+          OUTCOME_COMMIT: ${{ steps.commit.outcome }}
+        run: node scripts/ci/diffusion-summary.mjs
