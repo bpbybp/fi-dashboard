@@ -4,6 +4,7 @@
 // buildRecord/z-score/flash 방법론은 diffusion-core.mjs (Fenrir 이식본) 기준.
 
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { buildRecord } from './diffusion-core.mjs';
 
 export const BACKFILL_MONTHS = 60;        // 5y + 1y z-score warmup (Fenrir DEFAULT_BACKFILL_MONTHS)
@@ -114,18 +115,31 @@ export function withUpdatedOn(entries, updatedOn) {
   return entries.map((e) => ({ ...e, payload: { ...e.payload, meta: { ...e.payload.meta, updated_on: updatedOn } } }));
 }
 
-// meta.updated_on(갱신일)은 데이터가 바뀔 때만 오늘로. 기존 파일의 updated_on으로
-// 다시 렌더한 결과가 기존 파일과 같으면 = 데이터 불변 → 파일을 건드리지 않음(git diff 없음).
-// 기존 파일에 updated_on이 없으면(도입 전 파일) 1회 오늘로 기록.
+// 자기등록 본문 → 등록된 모든 시계열 중 최신 기준월 (확산=series, trimmed=data).
+export function latestPeriodInBody(body) {
+  if (!body) return null;
+  const window = {};
+  try { runInNewContext(body, { window }); } catch { return null; }
+  const periods = Object.values(window.FENRIR_SERIES || {})
+    .map((p) => { const a = p?.series ?? p?.data; return a && a.length ? a[a.length - 1].period : null; })
+    .filter(Boolean).sort();
+  return periods.length ? periods[periods.length - 1] : null;
+}
+
+// meta.updated_on(갱신일)은 "최신 기준월이 이전 파일보다 앞으로 이동했을 때"만 오늘로.
+// 같은 기준월에서의 재기록(매월 1일 윈도우 밀림·상세 6개월 재계산·수치 개정)은
+// 파일은 다시 쓰되 updated_on은 이전 값 유지. 본문이 완전히 같으면 파일 미기록(git diff 없음).
+// 기존 파일에 updated_on이 없으면(도입 전 파일·신규 파일) 1회 오늘로 기록.
 // render(updatedOn) → 파일 본문. 반환 {body, changed, updatedOn}.
 const UPDATED_ON_RE = /"updated_on":"(\d{4}-\d{2}-\d{2})"/;
 export function resolveStampedBody(prevBody, render, today) {
   const prevOn = prevBody?.match(UPDATED_ON_RE)?.[1] ?? null;
-  if (prevOn) {
-    const same = render(prevOn);
-    if (same === prevBody) return { body: same, changed: false, updatedOn: prevOn };
-  }
-  return { body: render(today), changed: true, updatedOn: today };
+  if (!prevOn) return { body: render(today), changed: true, updatedOn: today };
+  const kept = render(prevOn);
+  const advanced = (latestPeriodInBody(kept) ?? '') > (latestPeriodInBody(prevBody) ?? '');
+  const updatedOn = advanced ? today : prevOn;
+  const body = advanced ? render(today) : kept;
+  return { body, changed: body !== prevBody, updatedOn };
 }
 
 export function writeStampedFile(path, render, today = todayKst()) {
