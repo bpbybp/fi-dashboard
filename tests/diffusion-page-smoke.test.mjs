@@ -166,6 +166,13 @@ test('5탭 한 줄 결론 문구: 조사 분기 정확, 비문 없음', async ()
   }
 });
 
+test('실데이터 비-US 탭(trimmed 없음)도 배지 숨김 — toggle(force=undefined) 회귀', async () => {
+  for (const id of ['KR', 'EU', 'JP', 'AU']) {
+    const { els } = await runPage('real', '#' + id);
+    assert.ok(!els.get('sample-badge').classList.contains('show'), `${id}: 실데이터인데 샘플 배지 표시`);
+  }
+});
+
 test('실데이터 존재 시: 배지 자동 숨김 + [샘플] 표기 없음', async () => {
   const { els } = await runPage('real');
   const badge = els.get('sample-badge'); // 실데이터면 페이지가 배지를 건드리지 않음(부재=숨김)

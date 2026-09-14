@@ -305,7 +305,7 @@
     const primary = c._primary;
     const pce = c._pce || null;
     // 배지: 현재 탭이 픽스처(또는 US의 trimmed가 픽스처)일 때만 표시 → 실데이터 탭은 소멸.
-    const isSample = c._isFixture || (c.trimmed && trimmedFixture);
+    const isSample = !!(c._isFixture || (c.trimmed && trimmedFixture));  // boolean 강제: toggle(,undefined)=반전
     document.getElementById('sample-badge').classList.toggle('show', isSample);
     const s = primary.series;
     const latest = s[s.length - 1];
