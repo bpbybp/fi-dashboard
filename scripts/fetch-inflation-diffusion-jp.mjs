@@ -25,6 +25,7 @@ import {
   BACKFILL_MONTHS, DETAIL_MONTHS, DETAIL_SIZE_LIMIT,
   monthsBetween, computeWindow, buildCountryPayload, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 const ESTAT_BASE = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData';
 const SOURCE_URL = ESTAT_BASE;
@@ -49,10 +50,7 @@ async function fetchEstat(apiKey, params) {
   url.searchParams.set('appId', apiKey);
   url.searchParams.set('statsDataId', JP_STATS_DATA_ID);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const doFetch = () => fetch(url.toString());
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  const res = await fetchWithRetry(url.toString(), {}, { label: 'diffusion-jp' });
   if (!res.ok) throw new Error(`e-Stat HTTP ${res.status}`);
   const json = await res.json();
   const status = json.GET_STATS_DATA?.RESULT?.STATUS;

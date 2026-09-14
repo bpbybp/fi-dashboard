@@ -19,10 +19,10 @@ import {
   BACKFILL_MONTHS, DETAIL_MONTHS, DETAIL_SIZE_LIMIT,
   monthsBetween, computeWindow, buildCountryPayload, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 const KOSIS_URL = 'https://kosis.kr/openapi/Param/statisticsParameterData.do';
 const SOURCE_URL = KOSIS_URL + '?orgId=101&tblId=DT_1J22112';
-const KOSIS_TIMEOUT_MS = 15_000;
 
 function periodToKosis(p) { return p.slice(0, 4) + p.slice(5, 7); }         // "2026-03"→"202603"
 function kosisToPeriod(prdDe) { return `${prdDe.slice(0, 4)}-${prdDe.slice(4, 6)}`; }
@@ -41,10 +41,9 @@ async function callKosis(apiKey, tblId, startPrd, endPrd, extraParams = {}) {
   url.searchParams.set('endPrdDe', endPrd);
   for (const [k, v] of Object.entries(extraParams)) url.searchParams.set(k, v);
 
-  const doFetch = () => fetch(url.toString(), { signal: AbortSignal.timeout(KOSIS_TIMEOUT_MS) });
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  // 타임아웃·재시도는 공통 헬퍼(기본 60s, FETCH_TIMEOUT_MS). URL에 apiKey가 있어
+  // 헬퍼 로그는 host만 출력.
+  const res = await fetchWithRetry(url.toString(), {}, { label: 'diffusion-kr' });
   if (!res.ok) throw new Error(`KOSIS HTTP ${res.status} (tbl=${tblId})`);
   const text = await res.text();
   let parsed;

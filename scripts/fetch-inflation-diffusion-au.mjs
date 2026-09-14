@@ -28,16 +28,15 @@ import {
   BACKFILL_MONTHS, DETAIL_MONTHS, DETAIL_SIZE_LIMIT,
   computeWindow, buildCountryPayload, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 const ABS_BASE = 'https://api.data.abs.gov.au/data/';
 const SOURCE_URL = ABS_BASE + AU_RATE_DATAFLOW;
 
 async function fetchAbs(dataflow, filterPath, startPeriod) {
   const url = `${ABS_BASE}${dataflow}/${filterPath}/?startPeriod=${startPeriod}&dimensionAtObservation=AllDimensions`;
-  const doFetch = () => fetch(url, { headers: { Accept: 'application/vnd.sdmx.data+json' } });
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  const res = await fetchWithRetry(url, { headers: { Accept: 'application/vnd.sdmx.data+json' } },
+    { label: 'diffusion-au' });
   if (!res.ok) throw new Error(`ABS HTTP ${res.status} for ${dataflow}`);
   const text = await res.text();
   if (text === 'NoRecordsFound' || text.length < 50) return null;

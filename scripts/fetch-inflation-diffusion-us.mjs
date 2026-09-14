@@ -34,6 +34,7 @@ import {
   BACKFILL_MONTHS, DETAIL_MONTHS, DETAIL_SIZE_LIMIT,
   monthsBetween, computeWindow, buildCountryPayload, serializeRegistration, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 const BLS_API_URL = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
 const BLS_BATCH_SIZE = 50;
@@ -79,12 +80,9 @@ async function blsPostBatch(seriesIds, startYear, endYear, apiKey) {
     seriesid: seriesIds, startyear: String(startYear), endyear: String(endYear),
     registrationkey: apiKey, calculations: true,
   });
-  const doFetch = () => fetch(BLS_API_URL, {
+  const res = await fetchWithRetry(BLS_API_URL, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-  });
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  }, { label: 'diffusion-us/bls' });
   if (!res.ok) throw new Error(`BLS HTTP ${res.status}: ${await res.text().catch(() => '<no body>')}`);
   const json = await res.json();
   if (json.status !== 'REQUEST_SUCCEEDED') {
@@ -156,10 +154,7 @@ async function beaFetchTable(table, yearsCsv, apiKey) {
   url.searchParams.set('Frequency', 'M');
   url.searchParams.set('Year', yearsCsv);
   url.searchParams.set('ResultFormat', 'JSON');
-  const doFetch = () => fetch(url.toString());
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  const res = await fetchWithRetry(url.toString(), {}, { label: 'diffusion-us/bea' });
   if (!res.ok) throw new Error(`BEA HTTP ${res.status}: ${await res.text().catch(() => '<no body>')}`);
   const json = await res.json();
   const err = json.BEAAPI?.Results?.Error ?? json.BEAAPI?.Error;

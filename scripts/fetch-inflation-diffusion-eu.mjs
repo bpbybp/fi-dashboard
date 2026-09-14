@@ -20,6 +20,7 @@ import {
   BACKFILL_MONTHS, DETAIL_MONTHS, DETAIL_SIZE_LIMIT,
   monthsBetween, computeWindow, buildCountryPayload, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 const EUROSTAT_BASE = 'https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/';
 const SOURCE_URL = EUROSTAT_BASE + EU_RATE_TBL;
@@ -33,10 +34,7 @@ function flatIndex(sizes, positions) {
 
 async function fetchEurostat(table, filterPath) {
   const url = `${EUROSTAT_BASE}${table}/${filterPath}/?format=JSON`;
-  const doFetch = () => fetch(url);
-  let res;
-  try { res = await doFetch(); }
-  catch { await new Promise((r) => setTimeout(r, 1000)); res = await doFetch(); }
+  const res = await fetchWithRetry(url, {}, { label: 'diffusion-eu' });
   if (!res.ok) throw new Error(`Eurostat HTTP ${res.status} for ${table}`);
   const json = await res.json();
   if (Array.isArray(json.error) && json.error.length > 0) {

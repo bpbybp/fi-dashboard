@@ -17,6 +17,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
+import { fetchWithRetry } from './lib/fetch-retry.mjs';
 
 // 백필 시작: 15년+ 확보 (다른 물가 모듈과 정합). rate 시계열이라 크기 작음.
 const OBSERVATION_START = '2009-01-01';
@@ -76,7 +77,8 @@ async function fredGet(path, params) {
   url.searchParams.set('api_key', API_KEY);
   url.searchParams.set('file_type', 'json');
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url, { headers: { 'User-Agent': 'fi-dashboard/trimmed-us' } });
+  const res = await fetchWithRetry(url, { headers: { 'User-Agent': 'fi-dashboard/trimmed-us' } },
+    { label: 'trimmed-us' });
   if (!res.ok) {
     throw new Error(`FRED ${path} HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
   }
