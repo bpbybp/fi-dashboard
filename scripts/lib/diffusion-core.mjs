@@ -1,3 +1,6 @@
+// ⚠️ Fenrir calculator.ts 미반영 — 임계값 매개변수화(2026-09-16). opts 미지정 호출은
+//    원본과 동일(ge0/ge2/ge25/ge3 + ex_energy ge0/ge2). US만 opts로 ge3_5·ex_energy 확장 계열
+//    추가 산출. 방법론(가중식·재정규화·z-score·flash) 자체 변경 아님.
 // ⚠️ 이식본 (PORTED) — 원본: Fenrir src/lib/inflation-diffusion/calculator.ts (+ types.ts)
 //    기준 커밋: a242949 (기본 8계열) + 1266dfc·51c7abd (ex_energy 재정규화 추가).
 //    이 파일의 방법론(임계치·가중식·z-score·flash 판정·ex_energy) 수정 시 반드시 Fenrir
@@ -27,6 +30,17 @@ const EX_ENERGY_THRESHOLDS = [
   ['ge2', THRESHOLDS.ge2],
 ];
 
+/**
+ * US 전용 임계값 확장 (FOMC 위원 프레임 대조용 토글: 2 / 2.5 / 3 / 3.5%).
+ *   extraThresholds: 기본 4종에 더해 산출할 임계(가중·비가중·z) — ge3_5=≥3.5%.
+ *   exEnergyKeys: ex_energy에서 산출할 임계 키 (기본 ge0/ge2 → 2.5·3·3.5 추가).
+ * 타국은 opts 미지정 → 출력 키·값 기존과 동일.
+ */
+export const US_THRESHOLD_OPTS = Object.freeze({
+  extraThresholds: Object.freeze({ ge3_5: 3.5 }),
+  exEnergyKeys: Object.freeze(['ge0', 'ge2', 'ge25', 'ge3', 'ge3_5']),
+});
+
 /** Z-score warmup: 최소 이만큼의 history 개월이 있어야 의미 있는 z. */
 export const Z_MIN_HISTORY = 12;
 
@@ -40,18 +54,20 @@ function emptyThresholdRecord() {
  * weight=null(또는 ≤0) 품목은 가중 버전에서만 제외, 비가중엔 포함.
  * 반환값은 0~100 범위.
  */
-export function computeDiffusion(snapshot) {
+export function computeDiffusion(snapshot, opts = {}) {
   const validItems = snapshot.items.filter((i) => i.yoy !== null);
   const itemsWithWeight = validItems.filter(
     (i) => i.weight !== null && i.weight > 0
   );
   const totalWeight = itemsWithWeight.reduce((s, i) => s + i.weight, 0);
 
+  const thresholds = opts.extraThresholds ? { ...THRESHOLDS, ...opts.extraThresholds } : THRESHOLDS;
   const weighted = emptyThresholdRecord();
   const unweighted = emptyThresholdRecord();
 
-  for (const key of THRESHOLD_KEYS) {
-    const tau = THRESHOLDS[key];
+  for (const key of Object.keys(thresholds)) {
+    const tau = thresholds[key];
+    if (!(key in weighted)) { weighted[key] = 0; unweighted[key] = 0; }
 
     if (totalWeight > 0) {
       const matchingWeight = itemsWithWeight
@@ -66,7 +82,10 @@ export function computeDiffusion(snapshot) {
     }
   }
 
-  return { weighted, unweighted, ex_energy: computeExEnergy(snapshot, itemsWithWeight) };
+  return {
+    weighted, unweighted,
+    ex_energy: computeExEnergy(snapshot, itemsWithWeight, thresholds, opts.exEnergyKeys),
+  };
 }
 
 /**
@@ -76,14 +95,19 @@ export function computeDiffusion(snapshot) {
  * E = exclusionCodeSet(country), i는 (yoy≠null ∧ weight>0)인 품목.
  * 분모(비제외 가중 합) 0이면 0 반환. 제외 테이블 없는 국가는 E=∅ → 전체 가중과 동일(퇴화).
  */
-function computeExEnergy(snapshot, itemsWithWeight) {
+function computeExEnergy(snapshot, itemsWithWeight, thresholds = THRESHOLDS, exEnergyKeys) {
   const excluded = exclusionCodeSet(snapshot.country);
   const included = itemsWithWeight.filter((i) => !excluded.has(i.code));
   const denom = included.reduce((s, i) => s + i.weight, 0);
 
-  const weighted = { ge0: 0, ge2: 0 };
+  // 기본 ge0/ge2 (원본). exEnergyKeys 지정 시 그 순서대로 확장.
+  const pairs = exEnergyKeys
+    ? exEnergyKeys.map((k) => [k, thresholds[k]])
+    : EX_ENERGY_THRESHOLDS;
+  const weighted = {};
+  for (const [key] of pairs) weighted[key] = 0;
   if (denom > 0) {
-    for (const [key, tau] of EX_ENERGY_THRESHOLDS) {
+    for (const [key, tau] of pairs) {
       const matchingWeight = included
         .filter((i) => i.yoy >= tau)
         .reduce((s, i) => s + i.weight, 0);
@@ -119,8 +143,10 @@ function zScore(current, history) {
 /** 가중 버전만 z-score 계산 (의사결정 lens). */
 export function computeZScores(current, history) {
   const weighted = emptyThresholdRecord();
-  for (const key of THRESHOLD_KEYS) {
-    const series = history.map((h) => h.weighted[key]);
+  // 기본 4종 + current에 있는 확장 임계(ge3_5 등). 확장 키도 동일 누적 history 윈도우.
+  const keys = [...THRESHOLD_KEYS, ...Object.keys(current.weighted).filter((k) => !THRESHOLD_KEYS.includes(k))];
+  for (const key of keys) {
+    const series = history.map((h) => h.weighted[key]).filter((v) => v !== undefined);
     weighted[key] = zScore(current.weighted[key], series);
   }
   return { weighted };
@@ -152,9 +178,9 @@ export function isFlashRelease(snapshot) {
  * 스냅샷 + 누적 history → DiffusionRecord.
  * flash release면 null 반환(호출자는 집계 레코드 저장을 건너뜀).
  */
-export function buildRecord(snapshot, history) {
+export function buildRecord(snapshot, history, opts = {}) {
   if (isFlashRelease(snapshot)) return null;
-  const diffusion = computeDiffusion(snapshot);
+  const diffusion = computeDiffusion(snapshot, opts);
   const z_scores_5y = computeZScores(diffusion, history);
   return {
     country: snapshot.country,

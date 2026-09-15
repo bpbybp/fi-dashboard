@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeDiffusion, computeZScores, buildRecord, Z_MIN_HISTORY,
+  computeDiffusion, computeZScores, buildRecord, Z_MIN_HISTORY, US_THRESHOLD_OPTS,
 } from '../scripts/lib/diffusion-core.mjs';
 
 const near = (a, b, tol = 1e-6) => assert.ok(Math.abs(a - b) <= tol, `${a} ≉ ${b} (±${tol})`);
@@ -194,6 +194,69 @@ test('ex_energy: 비제외 전멸 → 분모 0 → 0', () => {
   ]));
   near(r.ex_energy.weighted.ge2, 0);
   near(r.ex_energy.weighted.ge0, 0);
+});
+
+// ── 임계값 매개변수화 (US 토글, 2026-09-16) ──
+const US_MIX = [
+  { code: 'SETB01', name: 'Gasoline', weight: 20, yoy: 6.0 },      // 제외
+  { code: 'SETG01', name: 'Airline fares', weight: 5, yoy: 3.2 },  // 제외
+  { code: 'A', name: 'A', weight: 15, yoy: 4.1 },
+  { code: 'B', name: 'B', weight: 20, yoy: 3.5 },                  // 3.5 경계
+  { code: 'C', name: 'C', weight: 10, yoy: 3.0 },                  // 3 경계
+  { code: 'D', name: 'D', weight: 10, yoy: 2.5 },                  // 2.5 경계
+  { code: 'E', name: 'E', weight: 10, yoy: 2.0 },                  // 2 경계
+  { code: 'F', name: 'F', weight: 10, yoy: -0.4 },
+];
+
+test('opts 미지정: 출력 키·순서 원본 동일 (타국 zero-diff)', () => {
+  const r = computeDiffusion(snap(US_MIX));
+  assert.deepEqual(Object.keys(r.weighted), ['ge0', 'ge2', 'ge25', 'ge3']);
+  assert.deepEqual(Object.keys(r.unweighted), ['ge0', 'ge2', 'ge25', 'ge3']);
+  assert.deepEqual(Object.keys(r.ex_energy.weighted), ['ge0', 'ge2']);
+});
+
+test('US opts: 기존 키 값 불변 + ge3_5·ex_energy 확장 키 추가', () => {
+  const base = computeDiffusion(snap(US_MIX));
+  const ext = computeDiffusion(snap(US_MIX), US_THRESHOLD_OPTS);
+  for (const k of ['ge0', 'ge2', 'ge25', 'ge3']) {
+    assert.equal(ext.weighted[k], base.weighted[k]);
+    assert.equal(ext.unweighted[k], base.unweighted[k]);
+  }
+  assert.equal(ext.ex_energy.weighted.ge0, base.ex_energy.weighted.ge0);
+  assert.equal(ext.ex_energy.weighted.ge2, base.ex_energy.weighted.ge2);
+  assert.deepEqual(Object.keys(ext.weighted), ['ge0', 'ge2', 'ge25', 'ge3', 'ge3_5']);
+  assert.deepEqual(Object.keys(ext.ex_energy.weighted), ['ge0', 'ge2', 'ge25', 'ge3', 'ge3_5']);
+  // 값 앵커: 전체 가중 ≥3.5 = SETB01(20)+A(15)+B(20) = 55 / 100
+  near(ext.weighted.ge3_5, 55);
+  // ex_energy 분모 75(비제외), ≥3 = A+B+C = 45 → 60, ≥3.5 = A+B = 35 → 46.67
+  near(ext.ex_energy.weighted.ge3, 60);
+  near(ext.ex_energy.weighted.ge3_5, (35 / 75) * 100);
+});
+
+test('US opts: 임계값 단조성 ge2 ≥ ge25 ≥ ge3 ≥ ge3_5 (전체·비가중·ex-energy)', () => {
+  const r = computeDiffusion(snap(US_MIX), US_THRESHOLD_OPTS);
+  for (const s of [r.weighted, r.unweighted, r.ex_energy.weighted]) {
+    assert.ok(s.ge2 >= s.ge25 && s.ge25 >= s.ge3 && s.ge3 >= s.ge3_5, JSON.stringify(s));
+  }
+});
+
+test('US opts: z-score ge3_5도 동일 누적 history로 계산, ge2 z 불변', () => {
+  const hist = [];
+  const histExt = [];
+  for (let t = 0; t < 30; t++) {
+    const items = US_MIX.map((it, i) => ({ ...it, yoy: it.yoy + Math.sin(t * 0.7 + i) }));
+    const base = buildRecord(snap(items), hist);
+    const ext = buildRecord(snap(items), histExt, US_THRESHOLD_OPTS);
+    assert.equal(ext.z_scores_5y.weighted.ge2, base.z_scores_5y.weighted.ge2);
+    assert.equal(typeof ext.z_scores_5y.weighted.ge3_5, 'number');
+    assert.ok(!('ge3_5' in base.z_scores_5y.weighted));
+    hist.push(base.diffusion); histExt.push(ext.diffusion);
+  }
+  const series = histExt.slice(0, -1).map((d) => d.weighted.ge3_5);
+  const mean = series.reduce((a, b) => a + b, 0) / series.length;
+  const std = Math.sqrt(series.reduce((a, b) => a + (b - mean) ** 2, 0) / series.length);
+  const last = histExt.at(-1).weighted.ge3_5;
+  near(computeZScores(histExt.at(-1), histExt.slice(0, -1)).weighted.ge3_5, (last - mean) / std);
 });
 
 test('ex_energy: 제외 테이블 없는 국가(KR)는 전체 가중과 동일(퇴화)', () => {
