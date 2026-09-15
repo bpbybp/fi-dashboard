@@ -11,12 +11,8 @@
       "cleveland": "클리블랜드 연은 (클리블랜드 나우캐스트)",
       "actual": "실제"
     },
-    "last_actual": "2026-07",
+    "last_actual": "2026-08",
     "recent_actual_yoy": [
-      {
-        "month": "2025-06",
-        "yoy": 2.68
-      },
       {
         "month": "2025-07",
         "yoy": 2.74
@@ -64,6 +60,10 @@
       {
         "month": "2026-07",
         "yoy": 3.3
+      },
+      {
+        "month": "2026-08",
+        "yoy": 3.35
       }
     ]
   },
@@ -202,7 +202,7 @@
     },
     {
       "month": "2026-08",
-      "frozen": false,
+      "frozen": true,
       "seasonal": {
         "mm": 0.255,
         "yoy": 3.21
@@ -252,6 +252,91 @@
             "gas_delta_mm": -9.255,
             "mm": 0.086,
             "yoy": 3.03
+          }
+        ]
+      },
+      "sealed": {
+        "yoy": null,
+        "late": false
+      },
+      "consensus": {
+        "yoy": null,
+        "late": false
+      },
+      "cleveland": {
+        "yoy": null,
+        "late": false
+      },
+      "actual": {
+        "yoy": 3.35,
+        "mm": 0.396
+      },
+      "miss_reason": null,
+      "errors": {
+        "seasonal": -0.14,
+        "combined": 0.04,
+        "sealed": null,
+        "consensus": null,
+        "cleveland": null
+      },
+      "frozen_manual": {
+        "sealed": false,
+        "consensus": false,
+        "cleveland": false
+      }
+    },
+    {
+      "month": "2026-09",
+      "frozen": false,
+      "seasonal": {
+        "mm": 0.317,
+        "yoy": 3.38
+      },
+      "combined": {
+        "mm": 0.427,
+        "yoy": 3.49,
+        "reg": {
+          "b": 0.494,
+          "r2": 0.916,
+          "w_e": 0.075
+        }
+      },
+      "band": {
+        "month": "2026-09",
+        "passthrough": {
+          "b": 0.464,
+          "r2": 0.765,
+          "n": 24,
+          "method": "WTI m/m → 휘발유 m/m, 24개월 디시즌·점-시점 회귀",
+          "note": "스팟 유지 가정 (FRED 단일 스팟 DCOILWTICO만 가용 — 선물 커브 미반영). ±20%는 현 스팟 대비 레벨 충격."
+        },
+        "base": {
+          "mm": 0.427,
+          "yoy": 3.49,
+          "w_e": 0.075,
+          "b_ge": 0.494
+        },
+        "branches": [
+          {
+            "key": "up20",
+            "shock": 20,
+            "gas_delta_mm": 9.287,
+            "mm": 0.771,
+            "yoy": 3.84
+          },
+          {
+            "key": "hold",
+            "shock": 0,
+            "gas_delta_mm": 0,
+            "mm": 0.427,
+            "yoy": 3.49
+          },
+          {
+            "key": "down20",
+            "shock": -20,
+            "gas_delta_mm": -9.287,
+            "mm": 0.083,
+            "yoy": 3.13
           }
         ]
       },

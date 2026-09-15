@@ -8,8 +8,8 @@
         "unit": "Dollars per Gallon",
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
-        "last_updated": "2026-08",
-        "last_weeks": 5
+        "last_updated": "2026-09",
+        "last_weeks": 2
       },
       "data": [
         {
@@ -1071,6 +1071,11 @@
           "period": "2026-08",
           "value": 4.058,
           "weeks": 5
+        },
+        {
+          "period": "2026-09",
+          "value": 4.2379999999999995,
+          "weeks": 2
         }
       ]
     },
@@ -2145,8 +2150,8 @@
         },
         {
           "period": "2026-09",
-          "value": 91.48,
-          "weeks": 1
+          "value": 93.39,
+          "weeks": 6
         }
       ]
     },
@@ -2156,7 +2161,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-07"
+        "last_updated": "2026-08"
       },
       "data": [
         {
@@ -2998,6 +3003,10 @@
         {
           "period": "2026-07",
           "value": 314.553
+        },
+        {
+          "period": "2026-08",
+          "value": 321.148
         }
       ]
     },
@@ -3007,7 +3016,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-07"
+        "last_updated": "2026-08"
       },
       "data": [
         {
@@ -3849,6 +3858,10 @@
         {
           "period": "2026-07",
           "value": 349.881
+        },
+        {
+          "period": "2026-08",
+          "value": 350.309
         }
       ]
     }
