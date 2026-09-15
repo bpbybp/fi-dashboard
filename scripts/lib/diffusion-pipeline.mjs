@@ -35,13 +35,20 @@ const r3 = (x) => (x == null ? null : Math.round(x * 1e3) / 1e3);
 
 // 스냅샷 배열 → {payload:{meta,series,detail}, stats}. 시간순 누적 history로 z-score.
 // Fenrir backfillCountry의 accumulatedHistory 방식과 1:1.
-export function buildCountryPayload(snapshots, meta) {
+// opts: 임계값 확장(US_THRESHOLD_OPTS 등) → buildRecord로 전달. 미지정 시 출력 기존과 동일.
+// 확장 키(ge3_5, ex_energy ge25/ge3/ge3_5)는 기존 키 뒤에 추가 직렬화.
+const BASE_KEYS = ['ge0', 'ge2', 'ge25', 'ge3'];
+const EX_BASE_KEYS = ['ge0', 'ge2'];
+const extraKeys = (obj, base) => Object.fromEntries(
+  Object.keys(obj).filter((k) => !base.includes(k)).map((k) => [k, r4(obj[k])]));
+
+export function buildCountryPayload(snapshots, meta, opts = {}) {
   const sorted = [...snapshots].sort((a, b) => a.period.localeCompare(b.period));
   const accumulated = [];
   const records = [];
   let flashSkipped = 0;
   for (const snap of sorted) {
-    const rec = buildRecord(snap, accumulated);
+    const rec = buildRecord(snap, accumulated, opts);
     if (rec === null) { flashSkipped++; continue; }
     accumulated.push(rec.diffusion);
     records.push({ record: rec, snapshot: snap });
@@ -55,10 +62,12 @@ export function buildCountryPayload(snapshots, meta) {
     weighted: {
       ge0: r4(record.diffusion.weighted.ge0), ge2: r4(record.diffusion.weighted.ge2),
       ge25: r4(record.diffusion.weighted.ge25), ge3: r4(record.diffusion.weighted.ge3),
+      ...extraKeys(record.diffusion.weighted, BASE_KEYS),
     },
     unweighted: {
       ge0: r4(record.diffusion.unweighted.ge0), ge2: r4(record.diffusion.unweighted.ge2),
       ge25: r4(record.diffusion.unweighted.ge25), ge3: r4(record.diffusion.unweighted.ge3),
+      ...extraKeys(record.diffusion.unweighted, BASE_KEYS),
     },
     // ex_energy(ge0/ge2): 에너지 직계+파급 제외 재정규화 코어 확산. 제외 테이블 없는
     // 국가는 전체 가중과 동일(퇴화). 백필 이전 방어용으로 부재 시 생략.
@@ -66,11 +75,13 @@ export function buildCountryPayload(snapshots, meta) {
       ex_energy: {
         ge0: r4(record.diffusion.ex_energy.weighted.ge0),
         ge2: r4(record.diffusion.ex_energy.weighted.ge2),
+        ...extraKeys(record.diffusion.ex_energy.weighted, EX_BASE_KEYS),
       },
     } : {}),
     z: {
       ge0: r4(record.z_scores_5y.weighted.ge0), ge2: r4(record.z_scores_5y.weighted.ge2),
       ge25: r4(record.z_scores_5y.weighted.ge25), ge3: r4(record.z_scores_5y.weighted.ge3),
+      ...extraKeys(record.z_scores_5y.weighted, BASE_KEYS),
     },
   }));
 

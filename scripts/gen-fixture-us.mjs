@@ -26,6 +26,7 @@ import { lookupKrWeight } from './lib/kr-cpi-weights.mjs';
 import { JP_CPI_ITEMS } from './lib/jp-cpi-items.mjs';
 import { lookupJpWeight } from './lib/jp-cpi-weights.mjs';
 import { computeWindow, monthsBetween, buildCountryPayload } from './fetch-inflation-diffusion-us.mjs';
+import { US_THRESHOLD_OPTS } from './lib/diffusion-core.mjs';
 import { SERIES as TRIMMED_SERIES, buildTrimmedPayload, serializeTrimmed } from './fetch-trimmed-us.mjs';
 
 // 결정론적 기준일 → 재현 가능한 픽스처 (Date.now 미사용).
@@ -90,15 +91,17 @@ function main() {
     synthSnapshots(BLS_CPI_ITEMS, lookupWeight, 'US-CPI', periods),
     { series_id: 'inflation-diffusion-us-cpi', display_name: 'US CPI 확산지수 (BLS, 136품목)',
       country: 'US-CPI', source: 'bls', unit: '%', value_type: 'diffusion', frequency: 'monthly',
-      yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3 },
+      yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3, ge3_5: 3.5 },
       window: { start, end }, port_ref: PORT_REF },
+    US_THRESHOLD_OPTS,
   );
   const pce = buildCountryPayload(
     synthSnapshots(BEA_PCE_ITEMS, lookupPceWeight, 'US-PCE', periods),
     { series_id: 'inflation-diffusion-us-pce', display_name: 'US PCE 확산지수 (BEA, 176품목)',
       country: 'US-PCE', source: 'bea', unit: '%', value_type: 'diffusion', frequency: 'monthly',
-      yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3 },
+      yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3, ge3_5: 3.5 },
       window: { start, end }, port_ref: PORT_REF },
+    US_THRESHOLD_OPTS,
   );
 
   const diffBanner = `// tests/fixtures/inflation-diffusion-us.fixture.js — 페이지 개발용 합성 픽스처.\n` +

@@ -35,6 +35,7 @@ import {
   monthsBetween, computeWindow, buildCountryPayload, serializeRegistration, writeDataFile,
 } from './lib/diffusion-pipeline.mjs';
 import { fetchWithRetry } from './lib/fetch-retry.mjs';
+import { US_THRESHOLD_OPTS } from './lib/diffusion-core.mjs';
 
 const BLS_API_URL = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
 const BLS_BATCH_SIZE = 50;
@@ -248,18 +249,20 @@ async function main() {
   const pceSnaps = await fetchPceHistory(start, end, beaKey);
 
   const PORT_REF = 'Fenrir a242949 · calculator.ts/us-cpi.ts/us-pce.ts 이식';
+  // US 전용 임계값 확장(토글 2/2.5/3/3.5%): ge3_5 + ex_energy ge25/ge3/ge3_5. 상세(detail)는 불변.
+  const US_THRESHOLDS_META = { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3, ge3_5: 3.5 };
   const cpi = buildCountryPayload(cpiSnaps, {
     series_id: 'inflation-diffusion-us-cpi', display_name: 'US CPI 확산지수 (BLS, 136품목)',
     country: 'US-CPI', source: 'bls', unit: '%', value_type: 'diffusion', frequency: 'monthly',
-    yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3 },
+    yoy_basis: 'YoY', thresholds: US_THRESHOLDS_META,
     window: { start, end }, port_ref: PORT_REF,
-  });
+  }, US_THRESHOLD_OPTS);
   const pce = buildCountryPayload(pceSnaps, {
     series_id: 'inflation-diffusion-us-pce', display_name: 'US PCE 확산지수 (BEA, 176품목)',
     country: 'US-PCE', source: 'bea', unit: '%', value_type: 'diffusion', frequency: 'monthly',
-    yoy_basis: 'YoY', thresholds: { ge0: 0, ge2: 2, ge25: 2.5, ge3: 3 },
+    yoy_basis: 'YoY', thresholds: US_THRESHOLDS_META,
     window: { start, end }, port_ref: PORT_REF,
-  });
+  }, US_THRESHOLD_OPTS);
 
   const banner = `// data/inflation-diffusion-us.js — 미국 물가 확산지수(US-CPI·US-PCE).\n` +
     `// scripts/fetch-inflation-diffusion-us.mjs 생성. 원시 지수 미저장, 파생 확산율만.\n` +

@@ -5,6 +5,9 @@ import assert from 'node:assert/strict';
 import {
   computeWindow, monthsBetween, buildCountryPayload, serializeRegistration, DETAIL_MONTHS,
 } from '../scripts/fetch-inflation-diffusion-us.mjs';
+import { US_THRESHOLD_OPTS } from '../scripts/lib/diffusion-core.mjs';
+
+const pick = (o, keys) => Object.fromEntries(keys.map((k) => [k, o[k]]));
 
 // 합성 스냅샷: period별로 3품목, yoy를 살짝 흔들어 분산 확보.
 function synthSnaps(periods) {
@@ -83,6 +86,33 @@ test('buildCountryPayload: flash 월(유효 yoy<20%)은 series에서 제외', ()
   assert.equal(stats.flashSkipped, 1);
   assert.equal(payload.series.length, 2);
   assert.equal(payload.meta.flash_skipped, 1);
+});
+
+test('US 임계값 확장: 기존 키 값·순서 불변 + ge3_5/ex_energy 확장 직렬화 + 단조성', () => {
+  const periods = [...monthsBetween('2021-07', '2026-06')];
+  const snaps = synthSnaps(periods).map((s) => ({ ...s, items: [...s.items,
+    { code: 'SETB01', name: 'Gasoline', weight: 10, yoy: 4.0 }] }));
+  const base = buildCountryPayload(snaps, { series_id: 'x' }).payload;
+  const ext = buildCountryPayload(snaps, { series_id: 'x' }, US_THRESHOLD_OPTS).payload;
+  const strip = (s) => ({
+    ...s,
+    weighted: pick(s.weighted, ['ge0', 'ge2', 'ge25', 'ge3']),
+    unweighted: pick(s.unweighted, ['ge0', 'ge2', 'ge25', 'ge3']),
+    ex_energy: pick(s.ex_energy, ['ge0', 'ge2']),
+    z: pick(s.z, ['ge0', 'ge2', 'ge25', 'ge3']),
+  });
+  // 확장 키 제거 시 opts 미지정 결과와 JSON 바이트 동일 (ge2 계열·z zero-diff)
+  assert.equal(JSON.stringify(ext.series.map(strip)), JSON.stringify(base.series));
+  assert.equal(JSON.stringify(ext.detail), JSON.stringify(base.detail));
+  assert.doesNotMatch(JSON.stringify(base), /ge3_5/);
+  for (const s of ext.series) {
+    assert.deepEqual(Object.keys(s.weighted), ['ge0', 'ge2', 'ge25', 'ge3', 'ge3_5']);
+    assert.deepEqual(Object.keys(s.ex_energy), ['ge0', 'ge2', 'ge25', 'ge3', 'ge3_5']);
+    assert.equal(typeof s.z.ge3_5, 'number');
+    for (const o of [s.weighted, s.ex_energy]) {
+      assert.ok(o.ge2 >= o.ge25 && o.ge25 >= o.ge3 && o.ge3 >= o.ge3_5);
+    }
+  }
 });
 
 test('serializeRegistration: window.FENRIR_SERIES 자기등록 + file://안전(fetch 없음)', () => {
