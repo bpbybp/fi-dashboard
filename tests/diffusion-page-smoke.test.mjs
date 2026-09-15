@@ -173,6 +173,28 @@ test('실데이터 비-US 탭(trimmed 없음)도 배지 숨김 — toggle(force=
   }
 });
 
+test('임계값 토글: 확장 키 있는 US → 4버튼 활성·기본 2%·판정 안내 없음, 타국 탭은 숨김', async () => {
+  const { els } = await runPage('real', '#US');
+  const bar = els.get('thr-bar').innerHTML;
+  assert.equal((bar.match(/<button/g) || []).length, 4);
+  assert.doesNotMatch(bar, /disabled/);
+  assert.match(bar, /data-thr="ge2" class="active"/);
+  assert.equal(els.get('thr-note').textContent, '');
+  assert.match(els.get('thr-label').textContent, /기준 2% 이상/);
+  const kr = (await runPage('real', '#KR')).els;
+  assert.equal(kr.get('thr-bar').innerHTML, '');
+  assert.equal(kr.get('thr-label').textContent, '');
+});
+
+test('임계값 토글: 확장 키 없는 기존 US 파일 → 버튼 비활성 + 안내, 판정 문구 정상', () => {
+  const vals = [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 62];
+  const els = runWithData({ 'inflation-diffusion-us-cpi': usPayloadFromGe2(vals) });
+  const bar = els.get('thr-bar').innerHTML;
+  assert.equal((bar.match(/<button[^>]* disabled/g) || []).length, 4);
+  assert.match(bar, /2% 기준만 있음/);
+  assert.match(els.get('v-line').innerHTML, /넓게 퍼져 있음/);
+});
+
 test('실데이터 존재 시: 배지 자동 숨김 + [샘플] 표기 없음', async () => {
   const { els } = await runPage('real');
   const badge = els.get('sample-badge'); // 실데이터면 페이지가 배지를 건드리지 않음(부재=숨김)
