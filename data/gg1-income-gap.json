@@ -1,8 +1,8 @@
 {
   "meta": {
     "module": "GG-1",
-    "updated_at": "2026-07-01T00:00:00Z",
-    "last_monthly": "2026-07",
+    "updated_at": "2026-08-01T00:00:00Z",
+    "last_monthly": "2026-08",
     "last_quarter": "2026Q2",
     "source": "ECOS",
     "series_codes": {
@@ -46,16 +46,6 @@
     "notes": "y/y=원계열 전년동기비. 월간 tot/export/import·분기 gdp/gdi 는 레벨→y/y 계산. export/import y/y 는 교역조건(순상품)의 줄다리기 분해용 보조지표(계약통화기준, 환율효과 제거) — 순상품교역조건과 정확 일치 아님(가중·연쇄식 차이). gap_actual_pp=gdi_yoy−gdp_yoy. gap_proxy_pp_{5y,10y,all}=β_lookback×tot_yoy_pct(월간)/×분기평균 tot_yoy(분기). β=절편없는 OLS(분기평균 tot_yoy vs gap_actual), R²은 무절편 규약(uncentered). updated_at 은 wall-clock 아닌 최신 월간 vintage 파생(파일 불변성)."
   },
   "monthly": [
-    {
-      "date": "2011-08",
-      "tot_index": 91.39,
-      "tot_yoy_pct": -12.46,
-      "export_price_yoy_pct": 5.91,
-      "import_price_yoy_pct": 17.06,
-      "gap_proxy_pp_5y": -6.79,
-      "gap_proxy_pp_10y": -5.78,
-      "gap_proxy_pp_all": -4.78
-    },
     {
       "date": "2011-09",
       "tot_index": 91.41,
@@ -1838,13 +1828,23 @@
     },
     {
       "date": "2026-07",
-      "tot_index": 118.17,
-      "tot_yoy_pct": 24.73,
-      "export_price_yoy_pct": 37.77,
-      "import_price_yoy_pct": 10.38,
-      "gap_proxy_pp_5y": 13.47,
-      "gap_proxy_pp_10y": 11.47,
-      "gap_proxy_pp_all": 9.48
+      "tot_index": 118.12,
+      "tot_yoy_pct": 24.68,
+      "export_price_yoy_pct": 37.53,
+      "import_price_yoy_pct": 10.41,
+      "gap_proxy_pp_5y": 13.44,
+      "gap_proxy_pp_10y": 11.45,
+      "gap_proxy_pp_all": 9.46
+    },
+    {
+      "date": "2026-08",
+      "tot_index": 119.9,
+      "tot_yoy_pct": 27.08,
+      "export_price_yoy_pct": 41.01,
+      "import_price_yoy_pct": 14.69,
+      "gap_proxy_pp_5y": 14.75,
+      "gap_proxy_pp_10y": 12.57,
+      "gap_proxy_pp_all": 10.38
     }
   ],
   "quarterly": [
