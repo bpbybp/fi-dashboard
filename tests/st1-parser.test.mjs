@@ -22,7 +22,9 @@ test('기준 예시 — 전 필드', () => {
   assert.equal(r.issuer, '아이엠증권');
   assert.equal(r.issuer_raw, '아이엠증권');
   assert.equal(r.kind, 'CP');
+  assert.equal(r.sector, null, '단기물에는 섹터가 없다');
   assert.equal(r.grade, 'A1');
+  assert.equal(r.grade_scale, 'st');
   assert.equal(r.maturity_ym, '2027-03');
   assert.equal(r.maturity_date, null);
   assert.equal(r.rate, 3.70);
@@ -149,6 +151,140 @@ test('등급 이형 — 부호·대소문자', () => {
   assert.equal(P('OO증권 A3 CP 27/3 4.1%').grade, 'A3');
 });
 
+// ── 채권 · 장기 등급 ─────────────────────────────────────────────────────
+//
+// 단기 체계와 장기 체계를 한 열(grade)에 담고 grade_scale 로 가른다.
+// 여기서 못 박는 것은 ① 장기 등급 어휘와 "0" 부착, ② 섹터 정규화,
+// ③ 겹치는 글자(B·C·D)의 체계 판정, ④ 단독 A 의 거부다.
+
+test('카드채 — kind=채권 · sector=여전채 · 장기등급', () => {
+  const r = P('KB국민카드 AA+ 카드채 27.6.20 3.62%');
+  assert.equal(r.kind, '채권');
+  assert.equal(r.sector, '여전채');
+  assert.equal(r.grade, 'AA+');
+  assert.equal(r.grade_scale, 'lt');
+  assert.equal(r.maturity_date, '2027-06-20');
+  assert.equal(r.rate, 3.62);
+  assert.equal(r.issuer, 'KB국민카드');
+  assert.deepEqual(r.flags, []);
+});
+
+test('회사채 — AA0 은 그대로 AA0', () => {
+  const r = P('롯데케미칼 AA0 회사채 28년 3월 만기 3.95%');
+  assert.equal(r.kind, '채권');
+  assert.equal(r.sector, '회사채');
+  assert.equal(r.grade, 'AA0');
+  assert.equal(r.grade_scale, 'lt');
+  assert.equal(r.maturity_ym, '2028-03');
+  assert.equal(r.issuer, '롯데케미칼');
+});
+
+test('부호 없는 장기 등급에는 "0" 을 붙인다 — AA → AA0', () => {
+  const r = P('신한은행 AA 은행채 27/9 3.40');
+  assert.equal(r.sector, '은행채');
+  assert.equal(r.grade, 'AA0', '"AA" 와 "AA0" 이 갈리면 원장이 두 줄로 쪼개진다');
+  assert.equal(r.grade_scale, 'lt');
+  assert.equal(r.rate, 3.40);
+  assert.equal(r.issuer, '신한은행');
+  assert.equal(P('OO 회사채 BBB 27/3 5.0%').grade, 'BBB0');
+  assert.equal(P('OO 회사채 BB 27/3 6.0%').grade, 'BB0');
+});
+
+test('AAA 는 부호를 붙이지 않는다', () => {
+  const r = P('한국도로공사 AAA 공사채 29-12 3.55%');
+  assert.equal(r.grade, 'AAA');
+  assert.equal(r.grade_scale, 'lt');
+  assert.equal(r.sector, '공사채');
+  assert.equal(r.maturity_ym, '2029-12');
+  assert.equal(r.issuer, '한국도로공사');
+});
+
+test('단독 A 는 등급으로 인정하지 않는다 — grade=null + ambiguous_grade', () => {
+  const r = P('OO A 회사채 27.3 4.10%');
+  assert.equal(r.grade, null, '한 글자 A 를 인정하면 영문 상호가 전부 등급이 된다');
+  assert.equal(r.grade_scale, null);
+  assert.ok(r.flags.includes('ambiguous_grade'));
+  assert.ok(!r.flags.includes('no_grade'), '예담의 "등급 없음" 과는 다른 상태다');
+  assert.equal(r.kind, '채권');
+  assert.equal(r.sector, '회사채');
+  assert.equal(r.rate, 4.10);
+});
+
+test('부호가 붙은 A 는 인정한다 — A+ · A0 · A-', () => {
+  for (const g of ['A+', 'A0', 'A-']) {
+    const r = P(`OO 회사채 ${g} 27/3 4.1%`);
+    assert.equal(r.grade, g, g);
+    assert.equal(r.grade_scale, 'lt', g);
+    assert.deepEqual(r.flags, [], g);
+  }
+});
+
+test('예담의 등급 없음에는 ambiguous_grade 가 붙지 않는다', () => {
+  const r = P('OO은행 예담 26년 12월 3.45%');
+  assert.equal(r.grade, null);
+  assert.equal(r.grade_scale, null);
+  assert.deepEqual(r.flags, []);
+});
+
+test('겹치는 글자 B — 종류가 체계를 가른다', () => {
+  const lt = P('OO B 회사채 27/3 4.50%');
+  assert.equal(lt.grade, 'B');
+  assert.equal(lt.grade_scale, 'lt');
+  assert.deepEqual(lt.flags, []);
+
+  const st = P('OO B CP 27/3 4.50%');
+  assert.equal(st.grade, 'B');
+  assert.equal(st.grade_scale, 'st');
+  assert.deepEqual(st.flags, []);
+});
+
+test('겹치는 글자인데 종류가 없으면 장기로 두고 추측을 남긴다', () => {
+  const r = P('OO B 27/3 4.50%');
+  assert.equal(r.grade, 'B');
+  assert.equal(r.grade_scale, 'lt');
+  assert.ok(r.flags.includes('grade_scale_guessed'));
+});
+
+test('섹터 정규화 — 특수채→공사채, 카드·캐피탈→여전채', () => {
+  assert.equal(P('OO 특수채 AAA 30/6 3.3%').sector, '공사채');
+  assert.equal(P('OO 여전채 AA0 27/3 3.9%').sector, '여전채');
+  assert.equal(P('OO 캐피탈채 A+ 27/3 4.0%').sector, '여전채');
+  assert.equal(P('OO 지방채 AA0 28/1 3.5%').sector, '지방채');
+  assert.equal(P('OO 채권 AA0 27/5 3.6%').sector, null, '"채권" 단독은 섹터를 모른다');
+});
+
+test('긴 것 우선 — "카드채" 가 "채권" 보다 먼저다', () => {
+  assert.equal(P('OO 카드채권 AA0 27/3 3.9%').sector, '여전채');
+});
+
+test('장기 등급만 있고 종류가 없으면 채권으로 본다 — kind_inferred', () => {
+  const r = P('롯데케미칼 AA0 28년 3월 3.95%');
+  assert.equal(r.kind, '채권');
+  assert.equal(r.sector, null, '섹터까지 지어내지는 않는다');
+  assert.ok(r.flags.includes('kind_inferred'));
+});
+
+test('단기 등급은 종류를 지어내지 않는다', () => {
+  const r = P('아이엠증권 A1 27년 3월 3.70%');
+  assert.equal(r.kind, null);
+  assert.equal(r.grade_scale, 'st');
+  assert.ok(!r.flags.includes('kind_inferred'));
+});
+
+test('채권 어휘가 단기물 판정을 밀어내지 않는다', () => {
+  assert.equal(P('아이엠증권 A1 CP 27/3 3.70%').kind, 'CP');
+  assert.equal(P('OO은행 예담CP 26년 12월 3.45%').kind, '예담');
+  assert.equal(P('OO증권 A1 ABSTB 27/3 3.55%').kind, 'ABSTB');
+});
+
+test('행 스키마 — sector·grade_scale 은 항상 존재한다(값이 없으면 null)', () => {
+  for (const line of ['확인 요망', '', '아이엠증권 A1 CP 27/3 3.70%']) {
+    const r = parseQuoteLine(line, { date: D });
+    assert.ok('sector' in r, line);
+    assert.ok('grade_scale' in r, line);
+  }
+});
+
 // ── 발행사 정규화 ────────────────────────────────────────────────────────
 
 test('국민은행 — 정규화가 "민" 을 지우지 않는다 (rv2-parser.js:252 함정)', () => {
@@ -213,7 +349,25 @@ test('빈 입력·비문자열도 행을 반환한다', () => {
 
 test('dedupeKey — null 필드는 빈 문자열로 접는다(자릿수 고정)', () => {
   const r = P('OO은행 예담 26년 12월 3.45%');
-  assert.equal(dedupeKey(r), '2026-08-31|OO은행|예담||2026-12|3.45');
+  assert.equal(dedupeKey(r), '2026-08-31|OO은행|예담||2026-12|3.45|');
+});
+
+test('dedupeKey — sector 없는 기존 행과 sector=null 신규 행의 키가 같다', () => {
+  // Phase 1 이전에 적힌 행에는 sector 키가 아예 없다. 마이그레이션 없이 같은 키여야 한다.
+  const legacy = {
+    date: '2026-08-31', issuer: 'OO은행', kind: '예담', grade: null,
+    maturity_ym: '2026-12', rate: 3.45,
+  };
+  const fresh = P('OO은행 예담 26년 12월 3.45%');
+  assert.equal(fresh.sector, null);
+  assert.equal(dedupeKey(legacy), dedupeKey(fresh), '기존 원장 행이 새 행으로 재계상된다');
+  assert.equal(mergeRows([legacy], [fresh]).added, 0, '기존 행 위에 같은 호가가 또 쌓였다');
+});
+
+test('dedupeKey — 섹터가 다르면 다른 기록이다', () => {
+  const a = P('OO 은행채 AA0 27/3 3.5%');
+  const b = P('OO 회사채 AA0 27/3 3.5%');
+  assert.notEqual(dedupeKey(a), dedupeKey(b));
 });
 
 test('mergeRows 멱등 — 같은 입력 2회 병합 시 added=0', () => {

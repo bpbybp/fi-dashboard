@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import {
   previewFromParsed, mergePreview, parseMaturityField, rowFromPreview,
   appendRow, removeByKey, monthsRemaining, uniqueIssuers, issuerSuggestions,
-  applyFilters, PREVIEW_FIELDS, FILTER_NONE,
+  applyFilters, PREVIEW_FIELDS, PREVIEW_PASSTHROUGH, FILTER_NONE,
   readEnvelope, bufferEnvelope, exportPayload, exportFilename, readCommitted,
   LS_BUFFER, EXPORT_KIND, ENVELOPE_VERSION,
 } from '../js/st1-ui.js';
@@ -23,12 +23,26 @@ const previewOf = (line) => previewFromParsed(parseQuoteLine(line, { date: D }))
 
 // ── 프리뷰 ───────────────────────────────────────────────────────────────
 
-test('파싱 결과 → 프리뷰 6필드(전부 문자열)', () => {
+test('파싱 결과 → 프리뷰 편집 6필드(전부 문자열) + 통과 2필드', () => {
   const p = previewOf(LINE);
   assert.deepEqual(p, {
     issuer: '아이엠증권', kind: 'CP', grade: 'A1', maturity: '2027-03', rate: '3.7', amount: '',
+    sector: null, grade_scale: 'st',
   });
-  assert.deepEqual(Object.keys(p).sort(), [...PREVIEW_FIELDS].sort());
+  assert.deepEqual(Object.keys(p).sort(), [...PREVIEW_FIELDS, ...PREVIEW_PASSTHROUGH].sort());
+});
+
+test('통과 필드는 입력 칸이 없다 — PREVIEW_FIELDS 와 겹치면 DOM 바인딩이 터진다', () => {
+  for (const k of PREVIEW_PASSTHROUGH) assert.ok(!PREVIEW_FIELDS.includes(k), k);
+});
+
+test('통과 필드는 dirty 를 타지 않고 재파싱을 그대로 따른다', () => {
+  const current = previewOf(LINE); // CP · sector null
+  const next = previewOf('KB국민카드 AA+ 카드채 27/6 3.62%');
+  const merged = mergePreview(next, current, { issuer: true, kind: true, grade: true });
+  assert.equal(merged.kind, 'CP', '손댄 편집 필드는 지킨다');
+  assert.equal(merged.sector, '여전채', '통과 필드는 재파싱값을 따른다');
+  assert.equal(merged.grade_scale, 'lt');
 });
 
 test('프리뷰 만기는 정확일자가 있으면 그쪽을 보여준다', () => {

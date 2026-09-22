@@ -39,7 +39,7 @@
 //   (모듈 최상위에 DOM 접근이 있으면 import 자체가 실패한다 — rv2-ui.js 와 같은 규약).
 
 import {
-  parseQuoteLine, normalizeIssuer, dedupeKey, mergeRows, todayLocal,
+  parseQuoteLine, normalizeIssuer, normalizeGrade, dedupeKey, mergeRows, todayLocal,
 } from './st1-parser.js';
 import {
   buildSeries, residualBp, residualDays, seriesKey,
@@ -51,6 +51,15 @@ import {
 /** 프리뷰 필드 = 화면에서 고칠 수 있는 6개. 순서가 곧 화면 순서다. */
 export const PREVIEW_FIELDS = ['issuer', 'kind', 'grade', 'maturity', 'rate', 'amount'];
 
+/**
+ * 프리뷰 통과 필드 — **파서가 채우고 화면은 편집하지 않는다.** 입력 칸이 없다.
+ *
+ * PREVIEW_FIELDS 에 넣으면 안 된다. DOM 바인딩이 그 배열을 그대로 돌며
+ * `st1-f-<필드>` 엘리먼트를 찾기 때문에, 칸 없는 필드를 끼우면 초기화가 통째로 터진다.
+ * 섹터 편집 UI 는 Phase 2 — 그때 여기서 PREVIEW_FIELDS 로 옮긴다.
+ */
+export const PREVIEW_PASSTHROUGH = ['sector', 'grade_scale'];
+
 /** 종류 선택지 — 파서가 내는 정규화 결과와 같은 어휘여야 필터가 새지 않는다. */
 export const KINDS = ['CP', '예담', '전단채', 'ABSTB'];
 
@@ -60,7 +69,10 @@ export const GRADES = ['A1', 'A2+', 'A2', 'A2-', 'A3+', 'A3', 'A3-', 'B+', 'B', 
 /** 필터에서 "값이 비어 있는 행"을 고르는 특수값. 빈 문자열은 '전체' 라 따로 필요하다. */
 export const FILTER_NONE = '__none__';
 
-const EMPTY_PREVIEW = () => ({ issuer: '', kind: '', grade: '', maturity: '', rate: '', amount: '' });
+const EMPTY_PREVIEW = () => ({
+  issuer: '', kind: '', grade: '', maturity: '', rate: '', amount: '',
+  sector: null, grade_scale: null,
+});
 
 // ── 저장 계층 상수 ───────────────────────────────────────────────────────
 
@@ -177,7 +189,10 @@ export function parseMaturityField(text) {
   return { maturity_ym: r.maturity_ym, maturity_date: r.maturity_date };
 }
 
-/** 파싱 결과 → 프리뷰 값(전부 문자열). 만기는 정확일자가 있으면 그쪽을 보여준다. */
+/**
+ * 파싱 결과 → 프리뷰 값. 편집 필드는 전부 문자열, 통과 필드는 파서 값 그대로(null 허용).
+ * 만기는 정확일자가 있으면 그쪽을 보여준다.
+ */
 export function previewFromParsed(p) {
   if (!p) return EMPTY_PREVIEW();
   return {
@@ -187,6 +202,8 @@ export function previewFromParsed(p) {
     maturity: p.maturity_date ?? p.maturity_ym ?? '',
     rate: p.rate == null ? '' : String(p.rate),
     amount: p.amount == null ? '' : String(p.amount),
+    sector: p.sector ?? null,
+    grade_scale: p.grade_scale ?? null,
   };
 }
 
@@ -199,15 +216,20 @@ export function previewFromParsed(p) {
 export function mergePreview(next, current = {}, dirty = {}) {
   const out = {};
   for (const k of PREVIEW_FIELDS) out[k] = dirty[k] ? (current[k] ?? '') : (next?.[k] ?? '');
+  // 통과 필드는 dirty 를 보지 않는다 — 입력 칸이 없어 사용자가 손댈 방법 자체가 없다.
+  for (const k of PREVIEW_PASSTHROUGH) out[k] = next?.[k] ?? null;
   return out;
 }
 
 /**
  * 프리뷰 값 → 기록 행. **파싱값이 아니라 화면값으로 만든다.**
  *
- * 등급은 대문자로 접는다. 값을 바꾸는 것이 아니라 표기를 고정하는 것으로,
- * 안 하면 `a1` 과 `A1` 이 dedupeKey 상 다른 행이 되어 원장이 갈라진다.
+ * 등급은 파서의 `normalizeGrade` 로 접는다. 값을 바꾸는 것이 아니라 표기를 고정하는
+ * 것으로, 안 하면 `a1`/`A1`·`AA`/`AA0` 이 dedupeKey 상 다른 행이 되어 원장이 갈라진다.
  * flags 는 파싱 시점이 아니라 **최종 저장값 기준**으로 다시 센다.
+ *
+ * `sector`·`grade_scale` 은 통과 필드다 — 파서가 채운 값을 그대로 내리기만 한다.
+ * 화면에서 종류를 손으로 '채권' 으로 고쳐도 섹터는 따라오지 않는다(Phase 2 범위).
  *
  * @param {object} preview PREVIEW_FIELDS 값들(문자열)
  * @param {{date?:string, raw?:string, source?:string}} meta
@@ -230,7 +252,10 @@ export function rowFromPreview(preview = {}, meta = {}) {
     issuer: normalizeIssuer(issuerRaw),
     issuer_raw: issuerRaw,
     kind,
-    grade: gradeRaw ? gradeRaw.toUpperCase() : null,
+    // 파서가 채운 값을 그대로 내린다. 섹터 편집은 Phase 2 — 지금은 손댈 칸이 없다.
+    sector: preview.sector ?? null,
+    grade: gradeRaw ? normalizeGrade(gradeRaw) : null,
+    grade_scale: preview.grade_scale ?? null,
     maturity_ym,
     maturity_date,
     rate,
