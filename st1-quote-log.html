@@ -58,12 +58,14 @@
   input:focus, select:focus { outline: none; border-color: var(--accent-ink); }
   #st1-line { width: 100%; font-family: var(--mono); font-size: 13.5px; padding: 10px 12px; }
 
-  /* 프리뷰 — 6개 필드. 비어 있으면 회색 처리(판단 색상 아님, "아직 안 채워졌다" 표시). */
+  /* 프리뷰 — 7개 필드. 비어 있으면 회색 처리(판단 색상 아님, "아직 안 채워졌다" 표시). */
   .preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 12px; }
   .pv { display: flex; flex-direction: column; gap: 3px; }
   .pv label { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .pv input { width: 100%; font-family: var(--mono); }
-  .pv input.is-empty { background: transparent; border-style: dashed; color: var(--muted); }
+  .pv input, .pv select { width: 100%; font-family: var(--mono); }
+  .pv input.is-empty, .pv select.is-empty { background: transparent; border-style: dashed; color: var(--muted); }
+  /* 섹터는 채권일 때만 산다 — 꺼져 있다는 것이 보여야 "왜 안 눌리지" 가 안 생긴다. */
+  .pv select:disabled { opacity: 0.4; cursor: not-allowed; }
 
   .notice { font-size: 12px; color: var(--muted); font-family: var(--mono); min-height: 18px; margin-top: 10px; }
   .notice.warn { color: var(--amber); }
@@ -106,6 +108,10 @@
   .series-toggles .tg input { accent-color: var(--accent-ink); margin: 0; }
 
   .chart-area { position: relative; }
+  /* 단기물 / 채권 / 기타 — 스팬이 자릿수로 다르니 같은 흐름에 섞어두지 않는다. */
+  .chart-group + .chart-group { margin-top: 26px; padding-top: 18px; border-top: 2px solid var(--border-2); }
+  .cg-label { font-size: 10.5px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+    letter-spacing: 0.06em; margin-bottom: 12px; }
   .chart-block + .chart-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
   .chart-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 2px; }
   .chart-head .cname { font-size: 12.5px; font-weight: 700; }
@@ -135,15 +141,15 @@
 
   <div class="eyebrow">
     <span class="step">ST-1</span>
-    <span class="ctx">단기물 호가 원장 · 직접 입력 · 클라이언트 온리(브라우저 밖으로 나가지 않음)</span>
+    <span class="ctx">단기물·채권 호가 원장 · 직접 입력 · 클라이언트 온리(브라우저 밖으로 나가지 않음)</span>
     <span class="right">
       <button class="btn" id="st1-theme" type="button" title="라이트/다크 전환">🌙 다크</button>
     </span>
   </div>
 
-  <h1>단기물 호가 기록</h1>
+  <h1>단기물·채권 호가 기록</h1>
   <p class="tagline">
-    CP·예담·전단채·ABSTB 호가를 한 줄씩 타이핑해 원장에 쌓는다.
+    CP·예담·전단채·ABSTB 와 채권(회사채·은행채·공사채·여전채·지방채) 호가를 한 줄씩 타이핑해 원장에 쌓는다.
     파싱은 <b>입력 보조</b>일 뿐이라 틀리면 프리뷰에서 바로 고치면 되고, <b>기록되는 것은 화면에 보이는 값</b>이다.
     측정·판단은 하지 않는다.
   </p>
@@ -167,6 +173,9 @@
         <input type="text" id="st1-f-issuer" list="st1-issuer-list" autocomplete="off" spellcheck="false"></div>
       <div class="pv"><label for="st1-f-kind">종류</label>
         <input type="text" id="st1-f-kind" list="st1-f-kind-list" autocomplete="off"></div>
+      <!-- 섹터는 채권일 때만 연다. 종류가 채권이 아니면 비활성 + 값 버림(js 가 관리). -->
+      <div class="pv"><label for="st1-f-sector">섹터</label>
+        <select id="st1-f-sector"></select></div>
       <div class="pv"><label for="st1-f-grade">등급</label>
         <input type="text" id="st1-f-grade" list="st1-f-grade-list" autocomplete="off"></div>
       <div class="pv"><label for="st1-f-maturity">만기</label>
@@ -231,13 +240,14 @@
       <span class="fl-label">필터</span>
       <input type="text" id="st1-fl-issuer" placeholder="발행사" autocomplete="off">
       <select id="st1-fl-kind"></select>
+      <select id="st1-fl-sector"></select>
       <select id="st1-fl-grade"></select>
       <span class="count" id="st1-count">0건</span>
     </div>
     <div class="table-scroll">
       <table class="q">
         <thead><tr>
-          <th>일자</th><th>발행사</th><th>종류</th><th>등급</th><th>만기</th>
+          <th>일자</th><th>발행사</th><th>종류</th><th>섹터</th><th>등급</th><th>만기</th>
           <th class="num">잔존</th><th class="num">금리</th><th class="num">금액</th>
           <th>원문</th><th class="num"></th>
         </tr></thead>

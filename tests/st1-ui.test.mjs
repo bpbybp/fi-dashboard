@@ -11,9 +11,9 @@ import assert from 'node:assert/strict';
 import {
   previewFromParsed, mergePreview, parseMaturityField, rowFromPreview,
   appendRow, removeByKey, monthsRemaining, uniqueIssuers, issuerSuggestions,
-  applyFilters, PREVIEW_FIELDS, PREVIEW_PASSTHROUGH, FILTER_NONE,
-  readEnvelope, bufferEnvelope, exportPayload, exportFilename, readCommitted,
-  LS_BUFFER, EXPORT_KIND, ENVELOPE_VERSION,
+  applyFilters, PREVIEW_FIELDS, FILTER_NONE, KINDS, SECTORS, GRADES, GRADES_ST, GRADES_LT,
+  readEnvelope, bufferEnvelope, exportPayload, exportFilename, readCommitted, readView,
+  LS_BUFFER, LS_VIEW, EXPORT_KIND, ENVELOPE_VERSION,
 } from '../js/st1-ui.js';
 import { parseQuoteLine, dedupeKey, mergeRows } from '../js/st1-parser.js';
 
@@ -23,26 +23,28 @@ const previewOf = (line) => previewFromParsed(parseQuoteLine(line, { date: D }))
 
 // ── 프리뷰 ───────────────────────────────────────────────────────────────
 
-test('파싱 결과 → 프리뷰 편집 6필드(전부 문자열) + 통과 2필드', () => {
+test('파싱 결과 → 프리뷰 7필드(전부 문자열)', () => {
   const p = previewOf(LINE);
   assert.deepEqual(p, {
-    issuer: '아이엠증권', kind: 'CP', grade: 'A1', maturity: '2027-03', rate: '3.7', amount: '',
-    sector: null, grade_scale: 'st',
+    issuer: '아이엠증권', kind: 'CP', sector: '', grade: 'A1',
+    maturity: '2027-03', rate: '3.7', amount: '',
   });
-  assert.deepEqual(Object.keys(p).sort(), [...PREVIEW_FIELDS, ...PREVIEW_PASSTHROUGH].sort());
+  assert.deepEqual(Object.keys(p).sort(), [...PREVIEW_FIELDS].sort());
+  assert.ok(!('grade_scale' in p), 'grade_scale 은 파생값이라 프리뷰에 들고 다니지 않는다');
 });
 
-test('통과 필드는 입력 칸이 없다 — PREVIEW_FIELDS 와 겹치면 DOM 바인딩이 터진다', () => {
-  for (const k of PREVIEW_PASSTHROUGH) assert.ok(!PREVIEW_FIELDS.includes(k), k);
+test('프리뷰 — 채권 라인은 섹터가 채워진다', () => {
+  const p = previewOf('KB국민카드 AA+ 카드채 27/6 3.62%');
+  assert.equal(p.kind, '채권');
+  assert.equal(p.sector, '여전채');
+  assert.equal(p.grade, 'AA+');
 });
 
-test('통과 필드는 dirty 를 타지 않고 재파싱을 그대로 따른다', () => {
-  const current = previewOf(LINE); // CP · sector null
-  const next = previewOf('KB국민카드 AA+ 카드채 27/6 3.62%');
-  const merged = mergePreview(next, current, { issuer: true, kind: true, grade: true });
-  assert.equal(merged.kind, 'CP', '손댄 편집 필드는 지킨다');
-  assert.equal(merged.sector, '여전채', '통과 필드는 재파싱값을 따른다');
-  assert.equal(merged.grade_scale, 'lt');
+test('섹터도 dirty 보호를 받는다 — 다른 편집 필드와 같은 규칙', () => {
+  const current = { ...previewOf('KB국민카드 AA+ 카드채 27/6 3.62%'), sector: '회사채' };
+  const next = previewOf('롯데케미칼 AA0 회사채 28/3 3.95%');
+  assert.equal(mergePreview(next, current, { sector: true }).sector, '회사채', '손댄 섹터가 되돌아갔다');
+  assert.equal(mergePreview(next, current, {}).sector, '회사채', 'dirty 없으면 재파싱값');
 });
 
 test('프리뷰 만기는 정확일자가 있으면 그쪽을 보여준다', () => {
@@ -120,6 +122,64 @@ test('발행사는 issuer_raw(입력 그대로) + issuer(정규화) 로 갈린�
   const row = rowFromPreview({ ...previewOf(LINE), issuer: '(주)국민은행' }, { date: D, raw: LINE });
   assert.equal(row.issuer_raw, '(주)국민은행');
   assert.equal(row.issuer, '국민은행');
+});
+
+// ── 섹터 · 등급 체계 (Phase 2) ───────────────────────────────────────────
+
+test('grade_scale 은 저장 직전에 재계산한다 — 등급을 고치면 체계도 따라온다', () => {
+  // A1(단기) 로 파싱된 프리뷰에서 등급만 AA0 으로 고쳤다.
+  // 파서가 낸 'st' 를 들고 다녔다면 여기서 'st' 가 나와 원장이 거짓말을 한다.
+  const row = rowFromPreview({ ...previewOf(LINE), grade: 'AA0' }, { date: D, raw: LINE });
+  assert.equal(row.grade, 'AA0');
+  assert.equal(row.grade_scale, 'lt', '등급만 고쳤는데 체계가 옛 값으로 남았다');
+
+  assert.equal(rowFromPreview(previewOf(LINE), { date: D }).grade_scale, 'st', 'A1 은 그대로 단기');
+  assert.equal(rowFromPreview({ ...previewOf(LINE), grade: '' }, { date: D }).grade_scale, null);
+});
+
+test('겹치는 등급 글자는 종류로 푼다 — 화면 경로는 종류가 비면 단기', () => {
+  const mkG = (grade, kind) => rowFromPreview({ ...previewOf(LINE), grade, kind }, { date: D });
+  assert.equal(mkG('B', '채권').grade_scale, 'lt');
+  assert.equal(mkG('B', 'CP').grade_scale, 'st');
+  assert.equal(mkG('B', '').grade_scale, 'st', '칸이 비어 있는 것은 "못 읽었다" 와 다르다');
+  assert.equal(mkG('AA0', '').grade_scale, 'lt', '겹치지 않는 글자는 종류와 무관');
+});
+
+test('섹터는 채권일 때만 산다 — 종류를 되돌리면 버린다', () => {
+  const bond = rowFromPreview(
+    { ...previewOf(LINE), kind: '채권', sector: '여전채' }, { date: D, raw: LINE });
+  assert.equal(bond.sector, '여전채');
+
+  // 화면의 select 는 비활성화되지만 저장 경로에서 한 번 더 막는다.
+  const cp = rowFromPreview(
+    { ...previewOf(LINE), kind: 'CP', sector: '여전채' }, { date: D, raw: LINE });
+  assert.equal(cp.sector, null, '"CP 인데 여전채" 행이 원장에 들어갔다');
+
+  assert.equal(rowFromPreview({ ...previewOf(LINE), kind: '채권', sector: '' }, { date: D }).sector, null);
+});
+
+test('어휘 목록 — 종류에 채권이 있고 등급은 두 체계를 합친 것', () => {
+  assert.ok(KINDS.includes('채권'));
+  assert.deepEqual(GRADES, [...GRADES_ST, ...GRADES_LT]);
+  assert.equal(new Set(GRADES).size, GRADES.length, '두 체계가 겹치는 값을 중복으로 실었다');
+  for (const s of SECTORS) assert.ok(typeof s === 'string' && s);
+  assert.ok(!SECTORS.includes('미분류'), '미분류는 표시 버킷이지 입력 선택지가 아니다');
+});
+
+// ── 저장된 보기 설정: 계보 화이트리스트 ──────────────────────────────────
+
+const viewRaw = (hidden) => JSON.stringify({
+  kind: LS_VIEW, version: ENVELOPE_VERSION, view: { maxWeeks: 8, halfLifeWeeks: 2, hidden },
+});
+
+test('hidden 은 모양으로 검증한다 — 채권 계보를 숨긴 상태가 살아남는다', () => {
+  const v = readView(viewRaw(['채권-회사채-AA0', 'CP-A1', '채권-여전채-AA-']));
+  assert.deepEqual(v.hidden, ['채권-회사채-AA0', 'CP-A1', '채권-여전채-AA-']);
+});
+
+test('hidden — 모양이 아닌 값은 버린다', () => {
+  assert.deepEqual(readView(viewRaw(['채권-x', '채권', 'CP-A9', ''])).hidden, []);
+  assert.deepEqual(readView(viewRaw(['채권-x', 'OTHER'])).hidden, ['OTHER']);
 });
 
 // ── 원장 추가·삭제 ───────────────────────────────────────────────────────
@@ -221,9 +281,23 @@ test('필터 — FILTER_NONE 은 값이 빈 행만', () => {
   assert.equal(applyFilters(ledger(), { grade: FILTER_NONE }).length, 1, '등급 없는 예담 1건');
 });
 
-test('필터 — 세 조건은 AND', () => {
+test('필터 — 조건들은 AND', () => {
   assert.equal(applyFilters(ledger(), { issuer: '아이엠', kind: 'CP', grade: 'A1' }).length, 3);
   assert.equal(applyFilters(ledger(), { issuer: '아이엠', kind: '예담' }).length, 0);
+});
+
+test('필터 — 섹터 (Phase 2)', () => {
+  const rows = [
+    ...ledger(),
+    rowFromPreview({ issuer: 'KB국민카드', kind: '채권', sector: '여전채', grade: 'AA+', maturity: '2027-06', rate: '3.62', amount: '' }, { date: D }),
+    rowFromPreview({ issuer: '신한은행', kind: '채권', sector: '은행채', grade: 'AA0', maturity: '2027-09', rate: '3.40', amount: '' }, { date: D }),
+  ];
+  assert.equal(applyFilters(rows, { sector: '여전채' }).length, 1);
+  assert.equal(applyFilters(rows, { sector: '은행채' }).length, 1);
+  assert.equal(applyFilters(rows, { kind: '채권' }).length, 2);
+  assert.equal(applyFilters(rows, { sector: FILTER_NONE }).length, 4, '섹터 없는 단기물 4건');
+  assert.equal(applyFilters(rows, { kind: '채권', sector: '은행채', grade: 'AA0' }).length, 1);
+  assert.equal(applyFilters(rows, { kind: 'CP', sector: '은행채' }).length, 0);
 });
 
 // ── 저장 계층 (Phase 3) ──────────────────────────────────────────────────

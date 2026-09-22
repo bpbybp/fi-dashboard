@@ -39,39 +39,52 @@
 //   (모듈 최상위에 DOM 접근이 있으면 import 자체가 실패한다 — rv2-ui.js 와 같은 규약).
 
 import {
-  parseQuoteLine, normalizeIssuer, normalizeGrade, dedupeKey, mergeRows, todayLocal,
+  parseQuoteLine, normalizeIssuer, normalizeGrade, gradeScaleOf,
+  dedupeKey, mergeRows, todayLocal, BOND_KIND,
 } from './st1-parser.js';
 import {
-  buildSeries, residualBp, residualDays, seriesKey,
-  SERIES_ORDER, MIN_FIT_POINTS, DEFAULT_MAX_WEEKS, DEFAULT_HALF_LIFE_WEEKS,
+  buildSeries, residualBp, residualDays, seriesKey, seriesOrder, isSeriesKey,
+  MIN_FIT_POINTS, DEFAULT_MAX_WEEKS, DEFAULT_HALF_LIFE_WEEKS,
 } from './st1-curve.js';
 
 // ── 상수 ─────────────────────────────────────────────────────────────────
 
-/** 프리뷰 필드 = 화면에서 고칠 수 있는 6개. 순서가 곧 화면 순서다. */
-export const PREVIEW_FIELDS = ['issuer', 'kind', 'grade', 'maturity', 'rate', 'amount'];
-
 /**
- * 프리뷰 통과 필드 — **파서가 채우고 화면은 편집하지 않는다.** 입력 칸이 없다.
+ * 프리뷰 필드 = 화면에서 고칠 수 있는 7개. **순서가 곧 화면 순서**이고, DOM 바인딩이
+ * 이 배열을 돌며 `st1-f-<필드>` 를 찾는다 — 칸 없는 필드를 끼우면 초기화가 통째로 터진다.
  *
- * PREVIEW_FIELDS 에 넣으면 안 된다. DOM 바인딩이 그 배열을 그대로 돌며
- * `st1-f-<필드>` 엘리먼트를 찾기 때문에, 칸 없는 필드를 끼우면 초기화가 통째로 터진다.
- * 섹터 편집 UI 는 Phase 2 — 그때 여기서 PREVIEW_FIELDS 로 옮긴다.
+ * `grade_scale` 은 여기 없다. 편집 대상이 아니라 **등급에서 유도되는 값**이라,
+ * 저장 직전에 `gradeScaleOf(grade, kind)` 로 다시 계산한다(파생값을 들고 다니면
+ * 등급만 고쳤을 때 체계가 옛 값으로 남는다).
  */
-export const PREVIEW_PASSTHROUGH = ['sector', 'grade_scale'];
+export const PREVIEW_FIELDS = ['issuer', 'kind', 'sector', 'grade', 'maturity', 'rate', 'amount'];
 
 /** 종류 선택지 — 파서가 내는 정규화 결과와 같은 어휘여야 필터가 새지 않는다. */
-export const KINDS = ['CP', '예담', '전단채', 'ABSTB'];
+export const KINDS = ['CP', '예담', '전단채', 'ABSTB', BOND_KIND];
 
-/** 등급 선택지 — 파서 GRADE_RE 와 같은 어휘. */
-export const GRADES = ['A1', 'A2+', 'A2', 'A2-', 'A3+', 'A3', 'A3-', 'B+', 'B', 'B-', 'C', 'D'];
+/** 섹터 선택지 — 채권일 때만 쓴다. 파서의 sector 정규화 결과와 같은 어휘. */
+export const SECTORS = ['회사채', '은행채', '공사채', '여전채', '지방채'];
+
+/** 단기 등급 — 파서 GRADE_RE 의 단기 체계. */
+export const GRADES_ST = ['A1', 'A2+', 'A2', 'A2-', 'A3+', 'A3', 'A3-', 'B+', 'B', 'B-', 'C', 'D'];
+
+/** 장기 등급 — 파서 GRADE_RE 의 장기 체계. 부호 없는 표기는 정규화 결과(AA0)로 싣는다. */
+export const GRADES_LT = [
+  'AAA', 'AA+', 'AA0', 'AA-', 'A+', 'A0', 'A-',
+  'BBB+', 'BBB0', 'BBB-', 'BB+', 'BB0', 'BB-', 'B0', 'CCC', 'CC',
+];
+
+/**
+ * 등급 선택지 전체 — datalist·필터가 쓴다. 두 체계를 합쳐 한 목록으로 낸다.
+ * 겹치는 글자(B±·C·D)는 단기 쪽에만 있으므로 중복이 생기지 않는다.
+ */
+export const GRADES = [...GRADES_ST, ...GRADES_LT];
 
 /** 필터에서 "값이 비어 있는 행"을 고르는 특수값. 빈 문자열은 '전체' 라 따로 필요하다. */
 export const FILTER_NONE = '__none__';
 
 const EMPTY_PREVIEW = () => ({
-  issuer: '', kind: '', grade: '', maturity: '', rate: '', amount: '',
-  sector: null, grade_scale: null,
+  issuer: '', kind: '', sector: '', grade: '', maturity: '', rate: '', amount: '',
 });
 
 // ── 저장 계층 상수 ───────────────────────────────────────────────────────
@@ -148,7 +161,9 @@ export function readView(raw) {
     return {
       maxWeeks: VIEW_WEEKS.includes(v.maxWeeks) ? v.maxWeeks : d.maxWeeks,
       halfLifeWeeks: VIEW_HALF_LIVES.includes(v.halfLifeWeeks) ? v.halfLifeWeeks : d.halfLifeWeeks,
-      hidden: Array.isArray(v.hidden) ? v.hidden.filter((k) => SERIES_ORDER.includes(k)) : d.hidden,
+      // ⚠️ 고정 목록 대조가 아니라 **모양 검증**이다. 채권 계보는 원장에 따라 생겼다
+      // 없어지므로, 목록에 없다고 버리면 숨겨둔 채권 계보가 다음 로드에서 조용히 풀린다.
+      hidden: Array.isArray(v.hidden) ? v.hidden.filter(isSeriesKey) : d.hidden,
     };
   } catch { return d; }
 }
@@ -190,20 +205,19 @@ export function parseMaturityField(text) {
 }
 
 /**
- * 파싱 결과 → 프리뷰 값. 편집 필드는 전부 문자열, 통과 필드는 파서 값 그대로(null 허용).
- * 만기는 정확일자가 있으면 그쪽을 보여준다.
+ * 파싱 결과 → 프리뷰 값(전부 문자열). 만기는 정확일자가 있으면 그쪽을 보여준다.
+ * 파서가 낸 `grade_scale` 은 버린다 — 저장 직전에 화면값으로 다시 계산한다.
  */
 export function previewFromParsed(p) {
   if (!p) return EMPTY_PREVIEW();
   return {
     issuer: p.issuer ?? '',
     kind: p.kind ?? '',
+    sector: p.sector ?? '',
     grade: p.grade ?? '',
     maturity: p.maturity_date ?? p.maturity_ym ?? '',
     rate: p.rate == null ? '' : String(p.rate),
     amount: p.amount == null ? '' : String(p.amount),
-    sector: p.sector ?? null,
-    grade_scale: p.grade_scale ?? null,
   };
 }
 
@@ -216,8 +230,6 @@ export function previewFromParsed(p) {
 export function mergePreview(next, current = {}, dirty = {}) {
   const out = {};
   for (const k of PREVIEW_FIELDS) out[k] = dirty[k] ? (current[k] ?? '') : (next?.[k] ?? '');
-  // 통과 필드는 dirty 를 보지 않는다 — 입력 칸이 없어 사용자가 손댈 방법 자체가 없다.
-  for (const k of PREVIEW_PASSTHROUGH) out[k] = next?.[k] ?? null;
   return out;
 }
 
@@ -228,8 +240,12 @@ export function mergePreview(next, current = {}, dirty = {}) {
  * 것으로, 안 하면 `a1`/`A1`·`AA`/`AA0` 이 dedupeKey 상 다른 행이 되어 원장이 갈라진다.
  * flags 는 파싱 시점이 아니라 **최종 저장값 기준**으로 다시 센다.
  *
- * `sector`·`grade_scale` 은 통과 필드다 — 파서가 채운 값을 그대로 내리기만 한다.
- * 화면에서 종류를 손으로 '채권' 으로 고쳐도 섹터는 따라오지 않는다(Phase 2 범위).
+ * `sector` 는 **채권일 때만 산다.** 종류를 채권에서 CP 로 되돌리면 남아 있던 섹터를
+ * 버린다 — 화면의 select 도 비활성화되지만, 저장 경로에서 한 번 더 막는 것은 원장에
+ * "CP 인데 섹터가 여전채" 같은 행이 들어가면 계보·필터가 조용히 어긋나기 때문이다.
+ *
+ * `grade_scale` 은 **저장 직전에 다시 계산한다.** 프리뷰에 들고 다니면 등급만 고쳤을 때
+ * 체계가 옛 값으로 남는다(A1 → AA0 으로 고쳤는데 여전히 'st' 인 행이 생긴다).
  *
  * @param {object} preview PREVIEW_FIELDS 값들(문자열)
  * @param {{date?:string, raw?:string, source?:string}} meta
@@ -241,6 +257,8 @@ export function rowFromPreview(preview = {}, meta = {}) {
   const amount = numOrNull(preview.amount);
   const kind = String(preview.kind ?? '').trim() || null;
   const gradeRaw = String(preview.grade ?? '').trim();
+  const grade = gradeRaw ? normalizeGrade(gradeRaw) : null;
+  const sectorRaw = String(preview.sector ?? '').trim();
 
   const flags = [];
   if (rate == null) flags.push('no_rate');
@@ -252,10 +270,9 @@ export function rowFromPreview(preview = {}, meta = {}) {
     issuer: normalizeIssuer(issuerRaw),
     issuer_raw: issuerRaw,
     kind,
-    // 파서가 채운 값을 그대로 내린다. 섹터 편집은 Phase 2 — 지금은 손댈 칸이 없다.
-    sector: preview.sector ?? null,
-    grade: gradeRaw ? normalizeGrade(gradeRaw) : null,
-    grade_scale: preview.grade_scale ?? null,
+    sector: kind === BOND_KIND ? (sectorRaw || null) : null,
+    grade,
+    grade_scale: gradeScaleOf(grade, kind),
     maturity_ym,
     maturity_date,
     rate,
@@ -313,13 +330,14 @@ export function issuerSuggestions(rows, prefix, limit = 20) {
 }
 
 /**
- * 표시 필터. Phase 2 는 발행사·종류·등급 3개뿐이다.
- * 발행사는 부분일치(타이핑 중에도 걸리게), 종류·등급은 완전일치.
+ * 표시 필터 — 발행사·종류·섹터·등급.
+ * 발행사는 부분일치(타이핑 중에도 걸리게), 나머지는 완전일치.
  * 빈 값 = 전체, FILTER_NONE = 해당 필드가 비어 있는 행만.
  */
 export function applyFilters(rows, f = {}) {
   const issuer = String(f.issuer ?? '').trim().toLowerCase();
   const kind = f.kind ?? '';
+  const sector = f.sector ?? '';
   const grade = f.grade ?? '';
   const match = (want, got) => {
     if (!want) return true;
@@ -330,6 +348,7 @@ export function applyFilters(rows, f = {}) {
     if (!r) return false;
     if (issuer && !String(r.issuer ?? '').toLowerCase().includes(issuer)) return false;
     if (!match(kind, r.kind)) return false;
+    if (!match(sector, r.sector)) return false;
     if (!match(grade, r.grade)) return false;
     return true;
   });
@@ -384,9 +403,12 @@ export async function initSt1() {
   // 프리뷰 입력들 — 사용자가 고치면 dirty 로 잠근다(재파싱이 덮지 않도록).
   for (const k of PREVIEW_FIELDS) {
     const el = $(`st1-f-${k}`);
-    el.addEventListener('input', () => {
+    // ⚠️ select 에 'input' 대신 'change' 를 쓴다. text 입력에 'change' 를 걸면
+    // 값을 안 고치고 탭으로 지나가기만 해도 dirty 가 찍혀 재파싱이 영영 막힌다.
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       DIRTY[k] = true;
       PREVIEW[k] = el.value;
+      if (k === 'kind') paintSectorState(); // 종류를 바꾸면 섹터 칸이 열리거나 닫힌다
       paintEmptyState();
       if (k === 'issuer') refreshIssuerList(el.value);
       renderChart(); // 미확정 마커·잔차는 필드를 고칠 때마다 따라와야 한다
@@ -406,7 +428,7 @@ export async function initSt1() {
   $('st1-reset-preview').addEventListener('click', () => { clearInput(); });
   $('st1-export').addEventListener('click', exportBuffer);
 
-  for (const id of ['st1-fl-issuer', 'st1-fl-kind', 'st1-fl-grade']) {
+  for (const id of ['st1-fl-issuer', 'st1-fl-kind', 'st1-fl-sector', 'st1-fl-grade']) {
     $(id).addEventListener('input', renderLedger);
     $(id).addEventListener('change', renderLedger);
   }
@@ -414,7 +436,9 @@ export async function initSt1() {
 
   fillSelect($('st1-f-kind-list'), KINDS);
   fillSelect($('st1-f-grade-list'), GRADES);
+  fillOptions($('st1-f-sector'), SECTORS, '—');
   fillFilterSelect($('st1-fl-kind'), KINDS, '종류 전체');
+  fillFilterSelect($('st1-fl-sector'), SECTORS, '섹터 전체');
   fillFilterSelect($('st1-fl-grade'), GRADES, '등급 전체');
 
   initChartControls(); // paintPreview·renderLedger 가 renderChart 를 부르므로 그보다 먼저다
@@ -436,6 +460,13 @@ function fillSelect(listEl, values) {
   listEl.innerHTML = values.map((v) => `<option value="${esc(v)}"></option>`).join('');
 }
 
+/** 프리뷰 select 채우기 — 빈 옵션이 곧 null 이다. */
+function fillOptions(selEl, values, emptyLabel) {
+  selEl.innerHTML = [`<option value="">${esc(emptyLabel)}</option>`]
+    .concat(values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`))
+    .join('');
+}
+
 function fillFilterSelect(selEl, values, allLabel) {
   selEl.innerHTML = [`<option value="">${esc(allLabel)}</option>`]
     .concat(values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`))
@@ -455,8 +486,22 @@ function paintEmptyState() {
   }
 }
 
+/**
+ * 섹터 칸은 **채권일 때만 연다.** 닫을 때는 값도 버린다 — 종류를 되돌렸는데 섹터가
+ * 남아 있으면 "CP 인데 여전채" 행이 만들어지고, 계보·필터가 조용히 어긋난다.
+ */
+function paintSectorState() {
+  const el = $('st1-f-sector');
+  if (!el) return;
+  const bond = String(PREVIEW.kind ?? '').trim() === BOND_KIND;
+  el.disabled = !bond;
+  el.title = bond ? '' : `종류가 '${BOND_KIND}' 일 때만 쓴다`;
+  if (!bond && PREVIEW.sector) { PREVIEW.sector = ''; el.value = ''; }
+}
+
 function paintPreview() {
   for (const k of PREVIEW_FIELDS) $(`st1-f-${k}`).value = PREVIEW[k] ?? '';
+  paintSectorState();
   paintEmptyState();
   refreshIssuerList(PREVIEW.issuer);
   renderChart();
@@ -532,6 +577,7 @@ function renderLedger() {
   const filtered = applyFilters(rows, {
     issuer: $('st1-fl-issuer').value,
     kind: $('st1-fl-kind').value,
+    sector: $('st1-fl-sector').value,
     grade: $('st1-fl-grade').value,
   });
   $('st1-count').textContent = filtered.length === rows.length
@@ -547,7 +593,7 @@ function renderLedger() {
 
   const body = $('st1-tbody');
   if (!filtered.length) {
-    body.innerHTML = `<tr><td colspan="10" class="empty">${rows.length ? '필터에 걸리는 행이 없습니다.' : '아직 기록이 없습니다.'}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="empty">${rows.length ? '필터에 걸리는 행이 없습니다.' : '아직 기록이 없습니다.'}</td></tr>`;
     return;
   }
   // 최신이 위. 원장 배열은 append 순서라 표시만 뒤집는다.
@@ -563,6 +609,7 @@ function renderLedger() {
       ${cell(r.date, 'mono')}
       ${cell(r.issuer)}
       ${cell(r.kind)}
+      ${cell(r.sector)}
       ${cell(r.grade, 'mono')}
       ${cell(r.maturity_date || r.maturity_ym, 'mono')}
       ${cell(m == null ? null : `${m}M`, 'num')}
@@ -759,25 +806,45 @@ function renderChart() {
     halfLifeWeeks: VIEW.halfLifeWeeks,
   });
 
+  paintSeriesToggles();
+
   const pending = pendingRow();
   const pendingKey = pending ? seriesKey(pending) : null;
 
-  const blocks = [];
-  for (const key of SERIES_ORDER) {
+  // 채권은 단기물과 **같은 패널 안에 섞지 않는다.** 스팬이 한 자릿수 배 차이라
+  // 나란히 놓으면 읽는 사람이 두 축을 같은 눈으로 비교하게 된다.
+  const groups = [{ label: '단기물', blocks: [] }, { label: '채권', blocks: [] }, { label: '기타', blocks: [] }];
+  for (const key of seriesOrder(allRows())) {
     if (VIEW.hidden.includes(key)) continue;
     const series = CURVES[key];
-    if (!series) continue;
+    if (!series || !series.points.length) continue; // 점 0개 계보는 패널을 만들지 않는다
     const mark = pending && pendingKey === key
       ? { tau: residualDays(pending), rate: pending.rate }
       : null;
-    blocks.push(seriesBlock(key, series, mark));
+    const gi = key.startsWith(`${BOND_KIND}-`) ? 1 : key === 'OTHER' ? 2 : 0;
+    groups[gi].blocks.push(seriesBlock(key, series, mark));
   }
 
-  host.innerHTML = blocks.length
-    ? blocks.join('')
-    : '<div class="empty">그릴 관측이 없습니다 — 만기와 금리가 모두 있는 기록이 필요합니다.</div>';
+  const html = groups.filter((g) => g.blocks.length).map((g) => (
+    `<div class="chart-group"><div class="cg-label">${esc(g.label)}</div>${g.blocks.join('')}</div>`
+  )).join('');
+
+  host.innerHTML = html
+    || '<div class="empty">그릴 관측이 없습니다 — 만기와 금리가 모두 있는 기록이 필요합니다.</div>';
 
   paintResidual(pending, pendingKey);
+}
+
+/**
+ * 계보 토글 — **원장이 바뀔 때마다 다시 짓는다.** 채권 계보는 기록이 생겨야 나타나므로
+ * init 때 한 번 짓고 말면 첫 채권을 기록해도 토글이 영영 안 생긴다.
+ * 이벤트는 컨테이너에 위임돼 있어 innerHTML 을 갈아도 리스너는 살아 있다.
+ */
+function paintSeriesToggles() {
+  const box = $('st1-cv-series');
+  if (!box) return;
+  box.innerHTML = seriesOrder(allRows()).map((k) => `<label class="tg"><input type="checkbox" data-series="${esc(k)}"`
+    + `${VIEW.hidden.includes(k) ? '' : ' checked'}>${esc(k)}</label>`).join('');
 }
 
 function hideTip() {
@@ -840,9 +907,8 @@ function initChartControls() {
     saveView(); renderChart();
   });
 
+  // 목록 자체는 renderChart 의 paintSeriesToggles 가 원장에서 짓는다. 여기서는 위임만 건다.
   const box = $('st1-cv-series');
-  box.innerHTML = SERIES_ORDER.map((k) => `<label class="tg"><input type="checkbox" data-series="${esc(k)}"`
-    + `${VIEW.hidden.includes(k) ? '' : ' checked'}>${esc(k)}</label>`).join('');
   box.addEventListener('change', (e) => {
     const cb = e.target && e.target.closest ? e.target.closest('input[data-series]') : null;
     if (!cb) return;

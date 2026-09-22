@@ -113,8 +113,8 @@ const SHARED_GRADES = new Set(['B+', 'B', 'B-', 'C', 'D']);
 /** 단기 체계로 확정짓는 종류. */
 const ST_KINDS = new Set(['CP', '예담', '전단채', 'ABSTB']);
 
-/** 채권 종류의 단일 이름. 세부는 `sector` 열이 진다. */
-const BOND_KIND = '채권';
+/** 채권 종류의 단일 이름. 세부는 `sector` 열이 진다. UI 도 이 상수를 쓴다(어휘의 단일 근원). */
+export const BOND_KIND = '채권';
 
 /**
  * 종류 — **우선순위 배열 순서대로 탐색**한다. 정규식 하나에 `|` 로 묶으면 문자열에서
@@ -282,6 +282,25 @@ function resolveGradeScale(grade, kind) {
   if (ST_KINDS.has(kind)) return { scale: 'st', guessed: false };
   if (kind === BOND_KIND) return { scale: 'lt', guessed: false };
   return { scale: 'lt', guessed: true };
+}
+
+/**
+ * 등급 + 종류 → `grade_scale`. **화면 입력 경로용 공개 API.**
+ *
+ * 판정은 파서와 같은 `resolveGradeScale` 을 그대로 쓴다 — 체계 규약의 단일 근원이다.
+ * 딱 한 곳만 다르다: 겹치는 글자(B±·C·D)에 종류가 없을 때 파서는 **장기로 추측**하지만
+ * 여기서는 **단기로 둔다**. 원문 한 줄에서 종류를 못 읽은 것과, 화면의 종류 칸이 아직
+ * 비어 있는 것은 다른 상태다 — 후자는 사용자가 곧 채울 칸이고 ST-1 의 기본 모집단은
+ * 단기물이라, 추측을 남기는 것보다 기본값을 주고 고치게 하는 쪽이 맞다.
+ *
+ * @param {string|null} grade 화면에 적힌 등급(정규화 전이어도 된다)
+ * @param {string|null} kind  화면에 적힌 종류
+ * @returns {'st'|'lt'|null} 등급이 비면 null
+ */
+export function gradeScaleOf(grade, kind = null) {
+  const g = grade == null || String(grade).trim() === '' ? null : normalizeGrade(grade);
+  const { scale, guessed } = resolveGradeScale(g, kind == null ? null : String(kind).trim());
+  return guessed ? 'st' : scale;
 }
 
 /**
