@@ -39,7 +39,7 @@
 //   (모듈 최상위에 DOM 접근이 있으면 import 자체가 실패한다 — rv2-ui.js 와 같은 규약).
 
 import {
-  parseQuoteLine, normalizeIssuer, normalizeGrade, gradeScaleOf,
+  parseQuoteLine, normalizeIssuer, normalizeGrade, normalizeKind, gradeScaleOf,
   dedupeKey, mergeRows, todayLocal, BOND_KIND,
 } from './st1-parser.js';
 import {
@@ -240,9 +240,15 @@ export function mergePreview(next, current = {}, dirty = {}) {
  * 것으로, 안 하면 `a1`/`A1`·`AA`/`AA0` 이 dedupeKey 상 다른 행이 되어 원장이 갈라진다.
  * flags 는 파싱 시점이 아니라 **최종 저장값 기준**으로 다시 센다.
  *
+ * 종류는 파서의 `normalizeKind` 로 접는다 — 종류 칸에 '회사채'·'카드채'·'전단' 같은
+ * 별칭을 쳐도 원문 한 줄로 친 것과 **같은 행**이 되어야 한다. 아는 어휘가 아니면 적은
+ * 그대로 남긴다(읽지 못한 값도 버리지 않는다는 파서 규약과 같다).
+ *
  * `sector` 는 **채권일 때만 산다.** 종류를 채권에서 CP 로 되돌리면 남아 있던 섹터를
  * 버린다 — 화면의 select 도 비활성화되지만, 저장 경로에서 한 번 더 막는 것은 원장에
  * "CP 인데 섹터가 여전채" 같은 행이 들어가면 계보·필터가 조용히 어긋나기 때문이다.
+ * 별칭이 섹터까지 알려주면(카드채 → 여전채) 그것으로 채우되, **화면에 이미 있는 값이
+ * 이긴다** — 사용자가 손으로 고른 섹터를 별칭이 덮으면 고칠 방법이 없어진다.
  *
  * `grade_scale` 은 **저장 직전에 다시 계산한다.** 프리뷰에 들고 다니면 등급만 고쳤을 때
  * 체계가 옛 값으로 남는다(A1 → AA0 으로 고쳤는데 여전히 'st' 인 행이 생긴다).
@@ -255,7 +261,9 @@ export function rowFromPreview(preview = {}, meta = {}) {
   const { maturity_ym, maturity_date } = parseMaturityField(preview.maturity);
   const rate = numOrNull(preview.rate);
   const amount = numOrNull(preview.amount);
-  const kind = String(preview.kind ?? '').trim() || null;
+  const kindRaw = String(preview.kind ?? '').trim();
+  const alias = kindRaw ? normalizeKind(kindRaw) : { kind: null, sector: null };
+  const kind = kindRaw ? (alias.kind ?? kindRaw) : null;
   const gradeRaw = String(preview.grade ?? '').trim();
   const grade = gradeRaw ? normalizeGrade(gradeRaw) : null;
   const sectorRaw = String(preview.sector ?? '').trim();
@@ -270,7 +278,7 @@ export function rowFromPreview(preview = {}, meta = {}) {
     issuer: normalizeIssuer(issuerRaw),
     issuer_raw: issuerRaw,
     kind,
-    sector: kind === BOND_KIND ? (sectorRaw || null) : null,
+    sector: kind === BOND_KIND ? (sectorRaw || alias.sector || null) : null,
     grade,
     grade_scale: gradeScaleOf(grade, kind),
     maturity_ym,
@@ -416,6 +424,20 @@ export async function initSt1() {
     el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); record(); } });
   }
 
+  // 종류 칸만 **칸을 떠날 때** 별칭을 접어 보여준다. 타이핑 중에 접으면 '전단' 을 치는
+  // 도중에 '전단채' 로 바뀌어 커서가 튄다. DIRTY 는 건드리지 않는다 — 값을 고치는 게
+  // 아니라 이미 정해진 저장값을 화면에 맞춰 보이는 것뿐이다.
+  $('st1-f-kind').addEventListener('change', () => {
+    const folded = previewKind().kind;
+    if (folded && folded !== PREVIEW.kind) {
+      PREVIEW.kind = folded;
+      $('st1-f-kind').value = folded;
+    }
+    paintSectorState();
+    paintEmptyState();
+    renderChart();
+  });
+
   // 원문 입력 — 칠 때마다 재파싱해 프리뷰를 채운다(손댄 필드는 지킨다).
   lineEl.addEventListener('input', () => {
     const parsed = parseQuoteLine(lineEl.value, { date: dateEl.value });
@@ -486,17 +508,34 @@ function paintEmptyState() {
   }
 }
 
+/** 종류 칸에 적힌 값의 정규화 결과. 별칭('회사채'·'전단')도 여기서 접힌다. */
+function previewKind() {
+  const raw = String(PREVIEW.kind ?? '').trim();
+  return raw ? normalizeKind(raw) : { kind: null, sector: null };
+}
+
 /**
  * 섹터 칸은 **채권일 때만 연다.** 닫을 때는 값도 버린다 — 종류를 되돌렸는데 섹터가
  * 남아 있으면 "CP 인데 여전채" 행이 만들어지고, 계보·필터가 조용히 어긋난다.
+ *
+ * 판정은 **정규화된 종류**로 한다. 칸에 '카드채' 라 적혀 있어도 저장될 행은 채권이므로,
+ * 칸이 잠긴 채로 기록되면 사용자는 섹터를 고를 기회조차 없이 여전채로 저장된다.
  */
 function paintSectorState() {
   const el = $('st1-f-sector');
   if (!el) return;
-  const bond = String(PREVIEW.kind ?? '').trim() === BOND_KIND;
+  const alias = previewKind();
+  const bond = alias.kind === BOND_KIND;
   el.disabled = !bond;
   el.title = bond ? '' : `종류가 '${BOND_KIND}' 일 때만 쓴다`;
-  if (!bond && PREVIEW.sector) { PREVIEW.sector = ''; el.value = ''; }
+  if (!bond) {
+    if (PREVIEW.sector) { PREVIEW.sector = ''; el.value = ''; }
+    return;
+  }
+  // 별칭이 섹터까지 알려주면 채운다. **사용자가 고른 값은 덮지 않는다** — 덮으면
+  // 카드채 발행사의 회사채를 기록할 방법이 없어진다.
+  if (alias.sector && !DIRTY.sector) PREVIEW.sector = alias.sector;
+  el.value = PREVIEW.sector ?? '';
 }
 
 function paintPreview() {

@@ -265,6 +265,22 @@ function takeKind(text) {
 }
 
 /**
+ * 종류 별칭 정규화 — **화면 입력 경로용 공개 API.**
+ *
+ * `matchKind` 를 그대로 쓴다(어휘의 단일 근원). 원문 한 줄에서 종류를 뽑는 것과
+ * 종류 칸에 적힌 한 토막을 접는 것은 같은 문제라, 화면이 자기 사전을 따로 갖지 않는다.
+ * 안 그러면 원문에 "회사채" 를 치면 `채권`+`회사채` 인데 종류 칸에 직접 치면
+ * `회사채` 라는 있지도 않은 종류가 원장에 들어간다.
+ *
+ * @param {string} text 종류 칸에 적힌 값
+ * @returns {{ kind: string|null, sector: string|null }} 아는 어휘가 없으면 둘 다 null
+ */
+export function normalizeKind(text) {
+  const { kind, sector } = matchKind(String(text ?? ''));
+  return { kind, sector };
+}
+
+/**
  * 등급 체계 판정 — `grade_scale`.
  *
  * 글자만으로 갈리는 등급이 대부분이고, 겹치는 다섯 글자(B±·B·C·D)만 종류를 본다.

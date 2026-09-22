@@ -119,4 +119,19 @@ test('페이지 스모크 — 채권 입력부터 차트·원장까지 배선이
   kind.fire('input');
   assert.ok(sector.disabled, 'CP 인데 섹터 칸이 열려 있다');
   assert.equal(sector.value, '', '종류를 되돌렸는데 섹터가 남았다');
+
+  // ── 종류 칸에 별칭을 직접 친다 ─────────────────────────────────────────
+  kind.value = '회사채';
+  kind.fire('input');
+  assert.equal(sector.disabled, false, "별칭 '회사채' 인데 섹터 칸이 잠겼다");
+  assert.equal(sector.value, '회사채', '별칭이 알려준 섹터가 안 채워졌다');
+  kind.fire('change'); // 칸을 떠나면 화면 표기도 저장값에 맞춘다
+  assert.equal(kind.value, '채권', "종류 칸이 '회사채' 인 채로 남았다");
+
+  // 사용자가 고른 섹터는 별칭이 덮지 않는다(카드채 발행사의 회사채).
+  sector.value = '회사채';
+  sector.fire('change');
+  kind.value = '카드채';
+  kind.fire('input');
+  assert.equal(sector.value, '회사채', '손으로 고른 섹터를 별칭이 덮었다');
 });

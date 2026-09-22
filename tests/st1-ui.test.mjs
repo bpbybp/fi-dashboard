@@ -145,6 +145,48 @@ test('겹치는 등급 글자는 종류로 푼다 — 화면 경로는 종류가
   assert.equal(mkG('AA0', '').grade_scale, 'lt', '겹치지 않는 글자는 종류와 무관');
 });
 
+test('종류 별칭은 파서와 같게 접힌다 — 화면이 자기 사전을 갖지 않는다', () => {
+  const byKind = (kind, over = {}) =>
+    rowFromPreview({ ...previewOf(LINE), kind, sector: '', ...over }, { date: D, raw: LINE });
+
+  const 회사채 = byKind('회사채');
+  assert.equal(회사채.kind, '채권', "'회사채' 라는 종류가 원장에 들어갔다");
+  assert.equal(회사채.sector, '회사채');
+
+  const 카드채 = byKind('카드채');
+  assert.equal(카드채.kind, '채권');
+  assert.equal(카드채.sector, '여전채');
+
+  const 전단 = byKind('전단');
+  assert.equal(전단.kind, '전단채');
+  assert.equal(전단.sector, null, '단기물에 섹터가 붙었다');
+
+  // 원문 한 줄로 친 것과 결과가 같아야 한다 — 두 경로가 갈리면 원장이 쪼개진다.
+  const viaLine = previewOf('롯데케미칼 AA0 회사채 28/3 3.95%');
+  assert.equal(byKind('회사채').kind, rowFromPreview(viaLine, { date: D }).kind);
+  assert.equal(byKind('회사채').sector, rowFromPreview(viaLine, { date: D }).sector);
+});
+
+test('아는 어휘가 아닌 종류는 적은 그대로 남긴다', () => {
+  const r = rowFromPreview({ ...previewOf(LINE), kind: '무슨채' }, { date: D, raw: LINE });
+  assert.equal(r.kind, '무슨채', '읽지 못한 값을 버리면 무엇을 적었는지 알 수 없다');
+  assert.equal(r.sector, null);
+});
+
+test('별칭이 사용자가 고른 섹터를 덮지 않는다', () => {
+  // 카드채 발행사의 회사채 — 별칭(여전채)이 이기면 이 행을 기록할 방법이 없다.
+  const r = rowFromPreview(
+    { ...previewOf(LINE), kind: '카드채', sector: '회사채' }, { date: D, raw: LINE });
+  assert.equal(r.kind, '채권');
+  assert.equal(r.sector, '회사채', '화면에 있는 섹터를 별칭이 덮었다');
+});
+
+test('별칭으로 접힌 종류도 등급 체계 판정에 쓰인다', () => {
+  // '회사채' 를 접지 않으면 kind 가 채권이 아니라서 겹치는 글자 B 가 단기로 떨어진다.
+  const r = rowFromPreview({ ...previewOf(LINE), kind: '회사채', grade: 'B' }, { date: D });
+  assert.equal(r.grade_scale, 'lt');
+});
+
 test('섹터는 채권일 때만 산다 — 종류를 되돌리면 버린다', () => {
   const bond = rowFromPreview(
     { ...previewOf(LINE), kind: '채권', sector: '여전채' }, { date: D, raw: LINE });
