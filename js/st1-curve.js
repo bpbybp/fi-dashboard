@@ -18,6 +18,12 @@
 //   예담(예담CP)은 등급이 A1 로 찍혀도 **실질 크레딧이 은행**이다. 회사채 A1 과
 //   한 곡선에 섞으면 적합선이 오염되고, 그 오염된 선에 대한 잔차는 아무 의미가 없다.
 //   그래서 예담은 등급과 무관하게 자기 계보를 갖는다.
+//
+// ── 채권 계보 (Phase 2) ─────────────────────────────────────────────────
+//   채권은 `채권-<섹터>-<등급버킷>` 으로 가른다. 같은 논리의 연장이다 — 은행채 AA0 과
+//   여전채 AA0 을 한 곡선에 올리면 적합선이 둘 사이를 지나 양쪽 잔차가 전부 거짓이 된다.
+//   계보 **목록은 고정할 수 없다**(섹터×등급 = 최대 54조합). 원장에 실제로 있는 조합만
+//   `seriesOrder(rows)` 가 낸다. 적합 모델·가중·최소 3점 규칙은 단기물과 완전히 동일하다.
 
 import { todayLocal } from './st1-parser.js';
 
@@ -37,8 +43,38 @@ export const DEFAULT_HALF_LIFE_WEEKS = 2;
 /** 적합에 넣을 최대 경과 주수. 그보다 오래된 호가는 다른 시장의 기록이다. */
 export const DEFAULT_MAX_WEEKS = 8;
 
-/** 계보 표시 순서. UI 가 토글·정렬에 쓰는 단일 근원. */
-export const SERIES_ORDER = ['예담', 'CP-A1', 'CP-A2', 'OTHER'];
+/**
+ * 단기물 고정 계보. 원장이 비어도 항상 자리를 갖는다 — 종류가 넷뿐이라 목록이 안 변한다.
+ * 채권은 섹터×등급 조합이라 고정할 수 없고 `seriesOrder(rows)` 가 원장에서 만든다.
+ */
+export const FIXED_SERIES = ['예담', 'CP-A1', 'CP-A2'];
+
+/** 어느 계보에도 안 붙는 나머지. 항상 맨 끝이다. */
+export const OTHER_SERIES = 'OTHER';
+
+/**
+ * @deprecated **채권 계보를 포함하지 않는다.** 표시 순서가 필요하면 `seriesOrder(rows)` 를 써라.
+ * 남겨둔 것은 고정 계보의 골격이라는 뜻뿐이고, 계보 전체 목록이 아니다.
+ */
+export const SERIES_ORDER = [...FIXED_SERIES, OTHER_SERIES];
+
+/** 채권 계보 키의 접두. `채권-<섹터>-<등급버킷>` 형태다. */
+const BOND_PREFIX = '채권';
+
+/** 섹터를 모르는 채권이 떨어지는 자리. 입력 선택지(`SECTORS`)가 아니라 **표시 버킷**이다. */
+export const UNKNOWN_SECTOR = '미분류';
+
+/** 채권 계보의 섹터 표시 순서. 크레딧이 단단한 쪽부터다(판단이 아니라 관례적 배열). */
+export const SECTOR_ORDER = ['은행채', '공사채', '회사채', '여전채', '지방채', UNKNOWN_SECTOR];
+
+/** 채권 계보의 등급 버킷 표시 순서. `bucketLT` 가 낼 수 있는 값의 전체 집합이기도 하다. */
+export const GRADE_ORDER_LT = ['AAA', 'AA+', 'AA0', 'AA-', 'A+', 'A0', 'A-', 'BBB', '투기'];
+
+/** 버킷을 만들지 않고 그대로 쓰는 장기 등급 — AA·A 구간은 한 노치가 실제로 커브를 가른다. */
+const LT_AS_IS = new Set(['AAA', 'AA+', 'AA0', 'AA-', 'A+', 'A0', 'A-']);
+
+/** BBB 는 세 노치를 한 버킷으로 접는다. 원장에 들어올 건수가 적어 쪼개면 전부 적합 불가가 된다. */
+const BBB_GRADES = new Set(['BBB+', 'BBB0', 'BBB-']);
 
 /** A2 계열 — 등급 세부(+/-)는 계보를 가르지 않는다. 점이 너무 적어 셋으로 쪼개면 전부 적합 불가가 된다. */
 const A2_GRADES = new Set(['A2+', 'A2', 'A2-']);
@@ -101,11 +137,32 @@ export function residualDays(row) {
 }
 
 /**
+ * 장기 등급 → 계보 버킷.
+ *
+ * AA·A 구간은 노치를 살리고(한 노치가 실제로 커브를 가른다), BBB 는 셋을 하나로 접고,
+ * BB 이하는 전부 '투기' 로 몬다 — 손으로 쌓는 원장에서 그 아래는 건수가 희박해
+ * 노치별로 쪼개면 어느 쪽도 3점을 못 채운다.
+ *
+ * @returns {string} GRADE_ORDER_LT 안의 값
+ */
+export function bucketLT(grade) {
+  const g = String(grade ?? '').trim().toUpperCase();
+  if (LT_AS_IS.has(g)) return g;
+  if (BBB_GRADES.has(g)) return 'BBB';
+  return '투기';
+}
+
+/**
  * 계보 판정. 이 함수가 어떤 점들이 한 곡선에 올라탈지를 정한다.
- * @returns {'예담'|'CP-A1'|'CP-A2'|'OTHER'}
+ *
+ * 채권은 **섹터와 등급 둘 다**로 가른다. 같은 AA0 이라도 은행채와 여전채는 다른 곡선이고,
+ * 섞으면 적합선이 둘 사이 어딘가를 지나 양쪽 잔차가 전부 거짓이 된다.
+ * 섹터를 모르는 채권은 '미분류' 로 모은다 — OTHER 로 보내면 파싱 실패 잔여물과 섞인다.
+ *
+ * @returns {string} '예담'|'CP-A1'|'CP-A2'|`채권-<섹터>-<버킷>`|'OTHER'
  */
 export function seriesKey(row) {
-  if (!row) return 'OTHER';
+  if (!row) return OTHER_SERIES;
   const kind = String(row.kind ?? '').trim();
   // 예담이 먼저다 — 등급을 보기 전에 갈라야 A1 예담이 회사채 A1 로 새지 않는다.
   if (kind === '예담') return '예담';
@@ -114,7 +171,67 @@ export function seriesKey(row) {
     if (g === 'A1') return 'CP-A1';
     if (A2_GRADES.has(g)) return 'CP-A2';
   }
-  return 'OTHER';
+  if (kind === BOND_PREFIX) {
+    const g = String(row.grade ?? '').trim().toUpperCase();
+    // 등급 없는 채권은 곡선을 만들 근거가 없다. 장기 체계가 아닌 것도 마찬가지다.
+    if (g && row.grade_scale === 'lt') {
+      const sector = String(row.sector ?? '').trim() || UNKNOWN_SECTOR;
+      return `${BOND_PREFIX}-${sector}-${bucketLT(g)}`;
+    }
+  }
+  return OTHER_SERIES;
+}
+
+/**
+ * 계보 키로 유효한가. 저장된 보기 설정(hidden)을 검증할 때 쓴다.
+ *
+ * ⚠️ **고정 목록 대조로 쓰면 안 된다.** 채권 계보는 원장에 따라 생겼다 없어지므로,
+ * 목록에 없다고 버리면 "채권 계보를 숨긴 상태" 가 다음 로드에서 조용히 풀린다.
+ *
+ * ⚠️ 정규식 `채권-[^-]+-[^-]+` 로 줄여 쓰면 안 된다. 버킷에 **하이픈이 들어간다**
+ * (`AA-`·`A-`) — 그 패턴은 `채권-회사채-AA-` 를 거부한다. 그래서 첫 하이픈에서만
+ * 쪼개고 섹터·버킷을 각자의 목록과 대조한다.
+ */
+export function isSeriesKey(key) {
+  const s = String(key ?? '');
+  if (FIXED_SERIES.includes(s) || s === OTHER_SERIES) return true;
+  const head = `${BOND_PREFIX}-`;
+  if (!s.startsWith(head)) return false;
+  const rest = s.slice(head.length);
+  const i = rest.indexOf('-'); // 섹터명에는 하이픈이 없다 — 첫 하이픈이 경계다
+  if (i < 0) return false;
+  return SECTOR_ORDER.includes(rest.slice(0, i)) && GRADE_ORDER_LT.includes(rest.slice(i + 1));
+}
+
+/**
+ * 원장 → 표시 순서. **고정 계보는 항상, 채권 계보는 원장에 있는 것만.**
+ *
+ * 채권은 섹터×등급이라 조합이 54개까지 나올 수 있다. 전부 고정으로 깔면 토글이 화면을
+ * 덮고 빈 패널이 줄줄이 생긴다 — 그래서 실제로 기록된 조합만 낸다.
+ *
+ * @param {object[]} rows 원장 전체
+ * @returns {string[]} 예담·CP-A1·CP-A2 → 채권(SECTOR_ORDER × GRADE_ORDER_LT 순) → OTHER
+ */
+export function seriesOrder(rows) {
+  const seen = new Set();
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const k = seriesKey(r);
+    if (k.startsWith(`${BOND_PREFIX}-`)) seen.add(k);
+  }
+  const rank = (k) => {
+    const rest = k.slice(BOND_PREFIX.length + 1);
+    const i = rest.indexOf('-');
+    const s = SECTOR_ORDER.indexOf(rest.slice(0, i));
+    const g = GRADE_ORDER_LT.indexOf(rest.slice(i + 1));
+    // 목록에 없는 값(손으로 고친 원장)은 뒤로 민다. 버리지는 않는다 — 기록은 기록이다.
+    return [s < 0 ? SECTOR_ORDER.length : s, g < 0 ? GRADE_ORDER_LT.length : g];
+  };
+  const bonds = [...seen].sort((a, b) => {
+    const [as, ag] = rank(a);
+    const [bs, bg] = rank(b);
+    return as - bs || ag - bg || a.localeCompare(b, 'ko');
+  });
+  return [...FIXED_SERIES, ...bonds, OTHER_SERIES];
 }
 
 /**

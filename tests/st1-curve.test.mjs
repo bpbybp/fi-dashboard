@@ -10,7 +10,9 @@ import assert from 'node:assert/strict';
 
 import {
   residualDays, seriesKey, weekAge, fitLog, residualBp, buildSeries,
-  SERIES_ORDER, MIN_FIT_POINTS, DEFAULT_HALF_LIFE_WEEKS, DEFAULT_MAX_WEEKS,
+  bucketLT, seriesOrder, isSeriesKey,
+  SERIES_ORDER, SECTOR_ORDER, GRADE_ORDER_LT,
+  MIN_FIT_POINTS, DEFAULT_HALF_LIFE_WEEKS, DEFAULT_MAX_WEEKS,
 } from '../js/st1-curve.js';
 
 const REF = '2026-09-01';
@@ -93,7 +95,7 @@ test('CP-A1 은 CP + A1 일 때만', () => {
   assert.equal(seriesKey(row({ kind: 'CP', grade: 'a1' })), 'CP-A1');
 });
 
-test('SERIES_ORDER 는 seriesKey 가 낼 수 있는 값을 모두 덮는다', () => {
+test('SERIES_ORDER 는 단기물 계보를 모두 덮는다 (채권은 seriesOrder 소관)', () => {
   const produced = new Set([
     seriesKey(row({ kind: '예담' })),
     seriesKey(row({ kind: 'CP', grade: 'A1' })),
@@ -101,6 +103,122 @@ test('SERIES_ORDER 는 seriesKey 가 낼 수 있는 값을 모두 덮는다', ()
     seriesKey(row({ kind: '전단채' })),
   ]);
   for (const k of produced) assert.ok(SERIES_ORDER.includes(k), `SERIES_ORDER 에 ${k} 가 없다`);
+});
+
+// ── ②-b 채권 계보 (Phase 2) ─────────────────────────────────────────────
+
+/** 채권 행 — 파서가 채우는 세 필드(kind·sector·grade_scale)를 갖춘 최소형. */
+const bond = (over = {}) => row({ kind: '채권', sector: '회사채', grade: 'AA0', grade_scale: 'lt', ...over });
+
+test('채권 계보 키 — 섹터와 등급 둘 다로 가른다', () => {
+  assert.equal(seriesKey(bond()), '채권-회사채-AA0');
+  assert.equal(seriesKey(bond({ sector: '은행채', grade: 'AAA' })), '채권-은행채-AAA');
+  assert.equal(seriesKey(bond({ sector: '여전채', grade: 'AA-' })), '채권-여전채-AA-');
+  assert.notEqual(
+    seriesKey(bond({ sector: '은행채' })), seriesKey(bond({ sector: '여전채' })),
+    '같은 AA0 이라도 섹터가 다르면 다른 곡선이다',
+  );
+});
+
+test('섹터를 모르는 채권은 미분류 — OTHER 로 보내지 않는다', () => {
+  assert.equal(seriesKey(bond({ sector: null })), '채권-미분류-AA0');
+  assert.equal(seriesKey(bond({ sector: '' })), '채권-미분류-AA0');
+});
+
+test('등급 버킷 — BBB 는 접고 BB 이하는 투기', () => {
+  for (const g of ['BBB+', 'BBB0', 'BBB-']) {
+    assert.equal(seriesKey(bond({ grade: g })), '채권-회사채-BBB', g);
+  }
+  for (const g of ['BB+', 'BB0', 'BB-', 'B', 'CCC', 'CC', 'C', 'D']) {
+    assert.equal(seriesKey(bond({ grade: g })), '채권-회사채-투기', g);
+  }
+  for (const g of ['AAA', 'AA+', 'AA0', 'AA-', 'A+', 'A0', 'A-']) {
+    assert.equal(bucketLT(g), g, `${g} 는 노치를 살려야 한다`);
+  }
+});
+
+test('bucketLT 가 내는 값은 전부 GRADE_ORDER_LT 안에 있다', () => {
+  for (const g of ['AAA', 'AA+', 'AA0', 'AA-', 'A+', 'A0', 'A-', 'BBB0', 'BB+', 'D', '', null]) {
+    assert.ok(GRADE_ORDER_LT.includes(bucketLT(g)), `${g} → ${bucketLT(g)}`);
+  }
+});
+
+test('등급 없는 채권·단기 체계 채권은 OTHER', () => {
+  assert.equal(seriesKey(bond({ grade: null })), 'OTHER', '곡선을 만들 근거가 없다');
+  assert.equal(seriesKey(bond({ grade: '' })), 'OTHER');
+  assert.equal(seriesKey(bond({ grade_scale: 'st' })), 'OTHER');
+  assert.equal(seriesKey(bond({ grade_scale: null })), 'OTHER');
+});
+
+test('기존 단기물 키는 채권 확장에 영향받지 않는다 (회귀)', () => {
+  assert.equal(seriesKey(row({ kind: '예담', grade: 'A1' })), '예담');
+  assert.equal(seriesKey(row({ kind: 'CP', grade: 'A1' })), 'CP-A1');
+  assert.equal(seriesKey(row({ kind: 'CP', grade: 'A2-' })), 'CP-A2');
+  assert.equal(seriesKey(row({ kind: 'ABSTB', grade: 'A1' })), 'OTHER');
+  // sector·grade_scale 이 붙어 있어도 단기물 판정은 그대로다.
+  assert.equal(seriesKey(row({ kind: 'CP', grade: 'A1', sector: null, grade_scale: 'st' })), 'CP-A1');
+});
+
+// ── 표시 순서 ────────────────────────────────────────────────────────────
+
+test('seriesOrder — 원장에 없는 조합은 나오지 않는다', () => {
+  const order = seriesOrder([bond({ sector: '회사채', grade: 'AA0' })]);
+  assert.deepEqual(order, ['예담', 'CP-A1', 'CP-A2', '채권-회사채-AA0', 'OTHER']);
+  assert.ok(!order.includes('채권-은행채-AAA'), '기록도 없는 조합이 토글에 떴다');
+});
+
+test('seriesOrder — 채권은 SECTOR_ORDER × GRADE_ORDER_LT 순', () => {
+  const rows = [
+    bond({ sector: '여전채', grade: 'A0' }),
+    bond({ sector: '은행채', grade: 'AA0' }),
+    bond({ sector: '회사채', grade: 'AAA' }),
+    bond({ sector: '은행채', grade: 'AAA' }),
+    bond({ sector: '회사채', grade: 'BBB0' }),
+    bond({ sector: null, grade: 'AAA' }),
+  ];
+  assert.deepEqual(seriesOrder(rows), [
+    '예담', 'CP-A1', 'CP-A2',
+    '채권-은행채-AAA', '채권-은행채-AA0',   // 섹터가 1순위
+    '채권-회사채-AAA', '채권-회사채-BBB',   // 같은 섹터 안에서는 등급순
+    '채권-여전채-A0',
+    '채권-미분류-AAA',                      // 미분류는 섹터 목록 맨 뒤
+    'OTHER',
+  ]);
+});
+
+test('seriesOrder — 고정 계보와 OTHER 는 원장이 비어도 자리를 지킨다', () => {
+  assert.deepEqual(seriesOrder([]), ['예담', 'CP-A1', 'CP-A2', 'OTHER']);
+  assert.deepEqual(seriesOrder(null), ['예담', 'CP-A1', 'CP-A2', 'OTHER']);
+  assert.equal(seriesOrder([bond()]).at(-1), 'OTHER', 'OTHER 가 맨 끝이 아니다');
+});
+
+test('seriesOrder — 같은 조합이 여러 건이어도 키는 하나', () => {
+  const rows = [bond(), bond({ issuer: '다른발행사' }), bond({ rate: 4.0 })];
+  assert.equal(seriesOrder(rows).filter((k) => k === '채권-회사채-AA0').length, 1);
+});
+
+// ── 계보 키 검증 (저장된 보기 설정용) ────────────────────────────────────
+
+test('isSeriesKey — 채권 키를 통과시킨다 (하이픈 등급 포함)', () => {
+  for (const k of ['예담', 'CP-A1', 'CP-A2', 'OTHER', '채권-회사채-AA0', '채권-미분류-투기']) {
+    assert.ok(isSeriesKey(k), k);
+  }
+  // ⚠️ `채권-[^-]+-[^-]+` 정규식으로 줄여 쓰면 아래가 전부 거부된다.
+  for (const k of ['채권-여전채-AA-', '채권-은행채-A-']) {
+    assert.ok(isSeriesKey(k), `${k} — 버킷의 하이픈에 걸렸다`);
+  }
+});
+
+test('isSeriesKey — 모양이 아닌 것은 거부한다', () => {
+  for (const k of ['채권-x', '채권', '채권-회사채', '채권-없는섹터-AA0', '채권-회사채-AA1',
+    'CP-A3', '', null, undefined, 42]) {
+    assert.ok(!isSeriesKey(k), String(k));
+  }
+});
+
+test('seriesOrder 가 내는 키는 전부 isSeriesKey 를 통과한다', () => {
+  const rows = [bond({ sector: '여전채', grade: 'AA-' }), bond({ sector: null, grade: 'BB+' })];
+  for (const k of seriesOrder(rows)) assert.ok(isSeriesKey(k), k);
 });
 
 // ── 경과 주수 ────────────────────────────────────────────────────────────
