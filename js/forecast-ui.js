@@ -3,7 +3,7 @@
 
 import { buildForecast, computeMM, annualYoYSummary } from './calc.js';
 import { renderIndexChart, renderMmChart, renderYoyChart } from './chart.js';
-import { getSeriesData, getConfig } from './series-config.js';
+import { getSeriesData, getConfig, seasonalExclusionsFor, exclusionFootnote } from './series-config.js';
 
 // 이 페이지가 표시하는 시리즈 (헤드라인 / 근원). 신규 series id 추가 없이
 // 기존 스캐폴딩(series-config.js)에 등록된 id만 노출한다.
@@ -93,6 +93,7 @@ function meta() {
     window_years: state.windowYears,
     notes: '',
     comparison_label: '',
+    seasonal_exclusions: seasonalExclusionsFor(META.series_id),
   };
 }
 
@@ -116,7 +117,7 @@ function renderAll() {
   renderAnnual(annualYoYSummary(DATA, scenario(), meta()));
   renderSummary(result);
   renderEditor(result);
-  renderMethodology();
+  renderMethodology(result);
 }
 
 // 데이터 파일이 아직 없는 시리즈(예: 근원). 페이지를 깨지 않고 안내만 표시.
@@ -139,17 +140,17 @@ function renderMissing() {
   renderMethodology();
 }
 
-// 방법론 버전 각주. 헤드라인·근원은 봉인된 v1, 생활물가는 '참고용'으로 시각 구분.
-function renderMethodology() {
+// 방법론 버전 각주. 헤드라인·근원은 봉인된 v1.1, 생활물가는 '참고용'으로 시각 구분.
+// 둘째 줄: 이번 전망 창에서 드롭된 시즈널 제외 달, 셋째 줄: 버전 변경 이력.
+const METHOD_CHANGELOG = 'v1.1 (2026-09-27): 시즈널 표본 이상치 제외 목록 추가 — 2025-08·09 통신요금 한시 할인';
+function renderMethodology(result) {
   const el = document.getElementById('method-note');
   if (!el) return;
-  if (REFERENCE_SERIES.has(state.seriesId)) {
-    el.className = 'method-note method-note-ref';
-    el.textContent = '전망 방법론 v1 · 참고용 — 전망 적합성 백테스트 판정 전, 게이트 미봉인';
-  } else {
-    el.className = 'method-note';
-    el.textContent = `전망 방법론 v1 · 계절평균(${state.windowYears}yr 고정창)`;
-  }
+  const head = REFERENCE_SERIES.has(state.seriesId)
+    ? '전망 방법론 v1.1 · 참고용 — 전망 적합성 백테스트 판정 전, 게이트 미봉인'
+    : `전망 방법론 v1.1 · 계절평균(${state.windowYears}yr 고정창)`;
+  el.className = REFERENCE_SERIES.has(state.seriesId) ? 'method-note method-note-ref' : 'method-note';
+  el.textContent = [head, exclusionFootnote(result?.guide?.excluded), METHOD_CHANGELOG].filter(Boolean).join('\n');
 }
 
 // ── 연평균 y-y 요약 카드 ──

@@ -117,7 +117,7 @@
   .notice { grid-column: 1 / -1; background: var(--panel); border: 1px dashed var(--border-2); border-radius: 9px; padding: 18px 20px; font-size: 13px; color: var(--text); }
   .notice-sub { color: var(--muted); font-size: 12px; }
   .notice .k { font-family: var(--mono); color: var(--accent); }
-  .method-note { font-size: 11px; color: var(--muted); font-family: var(--mono); margin: -6px 0 18px; }
+  .method-note { font-size: 11px; color: var(--muted); font-family: var(--mono); margin: -6px 0 18px; white-space: pre-line; }
   /* 참고용(게이트 미봉인) 시리즈 각주 — 봉인 v1과 시각 구분 */
   .method-note-ref {
     color: var(--forecast); background: rgba(240,136,62,0.10);
@@ -244,7 +244,7 @@
       <span class="dot" style="background:#8b949e"></span>시즈널 가이드 &nbsp;
       <span class="dot" style="background:#3fb950"></span>목표 2%<br>
       시즈널 가이드는 최종 실적 시점 기준 최근 <span class="k">N년</span> 같은 달 m-m의 고정 계절창 평균
-      (전망 전 구간에 동일 창 적용 · 전망 방법론 v1). 윈도우를 바꾸면 가이드와 전망이 함께 갱신됨.
+      (전망 전 구간에 동일 창 적용 · 전망 방법론 v1.1, 이상치 제외 달은 표본에서 드롭). 윈도우를 바꾸면 가이드와 전망이 함께 갱신됨.
     </div>
   </div>
 

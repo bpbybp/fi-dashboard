@@ -52,6 +52,30 @@ export const SERIES_CONFIG = {
 
 export const ALL_SERIES_IDS = Object.keys(SERIES_CONFIG);
 
+// 시즈널 표본 이상치 제외 (방법론 v1.1, 2026-09-27). 해당 달의 m-m 을 시즈널 창 표본에서 드롭한다
+// (창 길이는 늘리지 않음 → 단순평균 기준 "나머지 해 평균으로 대체"와 동일).
+//   kind 'shock'  : 일시 충격 달. 추세 참고값(c2)에서는 이 달 지수 수준을 기저 정상화 대상으로 쓴다.
+//   kind 'rebound': 충격 해소 반등 달. 시즈널 표본에서만 드롭, 지수 수준은 건드리지 않는다.
+// calc 는 무의존 — 호출자(admin·조회 페이지)가 seasonalExclusionsFor(id) 를 meta.seasonal_exclusions 로 넘긴다.
+//   group: 각주 묶음 라벨.
+const TELECOM_2025 = [
+  { period: '2025-08', kind: 'shock', reason: '통신요금 50% 한시 할인', group: '통신요금 한시 할인' },
+  { period: '2025-09', kind: 'rebound', reason: '할인 종료 반등', group: '통신요금 한시 할인' },
+];
+export const SEASONAL_EXCLUSIONS = ['kr-cpi-headline', 'kr-cpi-core', 'kr-cpi-lifecost']
+  .flatMap((series) => TELECOM_2025.map((e) => ({ series, ...e })));
+
+export function seasonalExclusionsFor(seriesId) {
+  return SEASONAL_EXCLUSIONS.filter((e) => e.series === seriesId).map(({ series, ...e }) => e);
+}
+
+// guide.excluded → "시즈널 제외: 2025-08, 2025-09 (통신요금 한시 할인)". 비었으면 ''.
+export function exclusionFootnote(excluded) {
+  if (!excluded?.length) return '';
+  const groups = [...new Set(excluded.map((e) => e.group || e.reason))];
+  return `시즈널 제외: ${excluded.map((e) => e.period).join(', ')} (${groups.join(' · ')})`;
+}
+
 export function getConfig(seriesId) {
   return SERIES_CONFIG[seriesId] ?? null;
 }

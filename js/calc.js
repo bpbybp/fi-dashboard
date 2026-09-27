@@ -4,7 +4,7 @@
 // 타입(참고용):
 //   IndexPoint      = { period: 'YYYY-MM', value: number }
 //   ScenarioRecord  = { series_id, scenario_id, label, mm_overrides: [{period, mm}], last_edited }
-//   MetaRecord      = { series_id, window_years: 5|10|15, notes, comparison_label }
+//   MetaRecord      = { series_id, window_years: 5|10|15, notes, comparison_label, seasonal_exclusions? }
 //   MmGuide         = { seasonal_avg_window, seasonal_trimmed_window, recent_6m_avg, recent_12m_avg }
 //   ForecastResult  = { series_id, scenario_id, index_history, index_forecast,
 //                       mm_history, mm_forecast, yoy_history, yoy_forecast, guide, mm_guide_full }
@@ -99,8 +99,8 @@ export const MIN_SEASONAL_SAMPLES = 3;
 
 // 시즈널 평균 m-m: 1~12월 각각의 N년 평균 (고정 endPeriod 윈도우).
 // 각 항목 { period, value, samples, insufficient }. 표본 0개면 value = null (0% 로 대체하지 않음).
-export function seasonalAvgMM(mmHistory, windowYears, endPeriod, forecastMonths) {
-  const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod);
+export function seasonalAvgMM(mmHistory, windowYears, endPeriod, forecastMonths, exclusions = []) {
+  const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod, exclusions);
   const result = [];
   let p = nextPeriod(endPeriod);
   for (let i = 0; i < forecastMonths; i++) {
@@ -116,8 +116,8 @@ export function seasonalAvgMM(mmHistory, windowYears, endPeriod, forecastMonths)
 
 // trimmed mean (상하위 trimRatio% 제거. 기본 0.1). trim 후 0개면 trim 없는 평균 폴백.
 // 항목 형태·표본 0개 처리는 seasonalAvgMM 과 동일.
-export function seasonalTrimmedAvgMM(mmHistory, windowYears, endPeriod, forecastMonths, trimRatio = 0.1) {
-  const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod);
+export function seasonalTrimmedAvgMM(mmHistory, windowYears, endPeriod, forecastMonths, trimRatio = 0.1, exclusions = []) {
+  const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod, exclusions);
   const result = [];
   let p = nextPeriod(endPeriod);
   for (let i = 0; i < forecastMonths; i++) {
@@ -127,6 +127,19 @@ export function seasonalTrimmedAvgMM(mmHistory, windowYears, endPeriod, forecast
     p = nextPeriod(p);
   }
   return result;
+}
+
+function excludedSet(exclusions) {
+  return new Set((exclusions ?? []).map((e) => e.period));
+}
+
+// endPeriod 앵커 고정 창([endPeriod − windowYears*12 + 1, endPeriod]) 안에 든 제외 항목 — guide.excluded 노출용.
+function exclusionsInWindow(exclusions, windowYears, endPeriod) {
+  const start = prevPeriod(endPeriod, windowYears * 12 - 1);
+  return (exclusions ?? [])
+    .filter((e) => comparePeriods(e.period, start) >= 0 && comparePeriods(e.period, endPeriod) <= 0)
+    .map((e) => ({ ...e }))
+    .sort((a, b) => comparePeriods(a.period, b.period));
 }
 
 function seasonalPoint(period, value, samples) {
@@ -153,7 +166,8 @@ export function insufficientMonths(guide) {
 
 // 시점별 rolling 시즈널 평균. 각 period p마다 윈도우 [p - windowYears*12 .. p-1]을 잡고
 // 같은 month-of-year의 m-m을 평균. 실측 갱신 효과 반영.
-export function rollingSeasonalAvgMM(mmHistory, windowYears, periods) {
+export function rollingSeasonalAvgMM(mmHistory, windowYears, periods, exclusions = []) {
+  const excluded = excludedSet(exclusions);
   const sortedHistory = sortByPeriod(mmHistory);
   return periods.map((p) => {
     const monthOfYear = periodMonth(p);
@@ -164,6 +178,7 @@ export function rollingSeasonalAvgMM(mmHistory, windowYears, periods) {
       if (comparePeriods(h.period, windowStart) < 0) continue;
       if (comparePeriods(h.period, windowEnd) > 0) continue;
       if (periodMonth(h.period) !== monthOfYear) continue;
+      if (excluded.has(h.period)) continue;
       samples.push(h.value);
     }
     const value = samples.length > 0
@@ -221,6 +236,7 @@ const EMPTY_GUIDE = () => ({
   recent_6m_avg: 0,
   recent_12m_avg: 0,
   insufficient_months: [],
+  excluded: [],
 });
 
 export function buildForecast(
@@ -299,20 +315,23 @@ export function buildForecast(
   // 지평 1~12M 구간은 rolling과 표본이 수학적으로 동일하고(값 불변), 12M 초과 연장 구간에서만
   // rolling과 갈린다. 연평균 요약 카드(annualYoYSummary)가 익년 12월까지 고정 윈도우로 연장하므로,
   // 카드와 차트 전망선이 전 지평에서 일치하도록 엔진도 고정 윈도우로 정렬.
-  const seasonalAvgFixed = seasonalAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths);
+  // 시즈널 표본 이상치 제외(v1.1): 호출자가 meta.seasonal_exclusions 로 넘긴 달을 모든 시즈널 창에서 드롭.
+  const exclusions = meta.seasonal_exclusions ?? [];
+  const seasonalAvgFixed = seasonalAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths, exclusions);
   assertSeasonalCoverage(seasonalAvgFixed);
   const guide = {
     seasonal_avg_window: seasonalAvgFixed,
-    seasonal_trimmed_window: seasonalTrimmedAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths),
+    seasonal_trimmed_window: seasonalTrimmedAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths, 0.1, exclusions),
     recent_6m_avg: recentAvgMM(mm_history, 6),
     recent_12m_avg: recentAvgMM(mm_history, 12),
     insufficient_months: insufficientMonths(seasonalAvgFixed),
+    excluded: exclusionsInWindow(exclusions, meta.window_years, endPeriod),
   };
 
   // mm_guide_full: history 마지막 24개월(회고적 rolling) + forecast 구간(고정 윈도우, 위 가이드와 동일).
   const last24HistoryPeriods = mm_history.slice(-24).map((p) => p.period);
   const mm_guide_full = [
-    ...rollingSeasonalAvgMM(mm_history, meta.window_years, last24HistoryPeriods),
+    ...rollingSeasonalAvgMM(mm_history, meta.window_years, last24HistoryPeriods, exclusions),
     ...seasonalAvgFixed,
   ];
 
@@ -375,7 +394,7 @@ export function annualYoYSummary(index_history, scenario, meta, mmFn = computeMM
   }
 
   const mmHistory = mmFn(sorted);
-  const guide = seasonalAvgMM(mmHistory, meta.window_years, lastPeriod, periods.length);
+  const guide = seasonalAvgMM(mmHistory, meta.window_years, lastPeriod, periods.length, meta.seasonal_exclusions ?? []);
   assertSeasonalCoverage(guide);
   const overrides = new Map(scenario.mm_overrides.map((o) => [o.period, o.mm]));
 
@@ -426,13 +445,16 @@ function summarizeYear(year, yoyMap, source) {
 // ─────────────────────────────────────────────────────────────
 
 // endPeriod로부터 windowYears*12개월 내(endPeriod 포함) 샘플을 month-of-year별로 모음.
-function collectMonthSamples(mmHistory, windowYears, endPeriod) {
+// exclusions: [{ period, ... }] — 해당 달의 m-m 은 표본에서 드롭(창 길이는 그대로). 방법론 v1.1.
+function collectMonthSamples(mmHistory, windowYears, endPeriod, exclusions = []) {
+  const excluded = excludedSet(exclusions);
   const sorted = sortByPeriod(mmHistory);
   const windowStart = prevPeriod(endPeriod, windowYears * 12 - 1);
   const byMonth = new Map();
   for (const p of sorted) {
     if (comparePeriods(p.period, windowStart) < 0) continue;
     if (comparePeriods(p.period, endPeriod) > 0) continue;
+    if (excluded.has(p.period)) continue;
     const m = periodMonth(p.period);
     const list = byMonth.get(m);
     if (list) list.push(p.value);

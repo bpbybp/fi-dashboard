@@ -8,7 +8,7 @@
 import { buildForecast, MIN_SEASONAL_SAMPLES } from './calc.js';
 import { renderYoyChart, renderMmChart } from './chart.js';
 import { parseKosisCsv, matchRow } from './csv-parse.js';
-import { SERIES_CONFIG, ALL_SERIES_IDS, getConfig, getSeriesData } from './series-config.js';
+import { SERIES_CONFIG, ALL_SERIES_IDS, getConfig, getSeriesData, seasonalExclusionsFor, exclusionFootnote } from './series-config.js';
 import { mergeSeries } from './series-merge.js';
 import { buildDataFileContent } from './data-file.js';
 
@@ -169,7 +169,10 @@ function renderPreview() {
 
   const cfg = getConfig(state.seriesId) || {};
   const scenario = { series_id: state.seriesId, scenario_id: 'base', label: 'Base', mm_overrides: [], last_edited: new Date().toISOString() };
-  const meta = { series_id: state.seriesId, window_years: 10, notes: '', comparison_label: '' };
+  const meta = {
+    series_id: state.seriesId, window_years: 10, notes: '', comparison_label: '',
+    seasonal_exclusions: seasonalExclusionsFor(state.seriesId),
+  };
   let result;
   try {
     result = buildForecast(merge.series, scenario, meta, 12, cfg.value_type || 'index', cfg.frequency || 'monthly');
@@ -196,6 +199,7 @@ function renderPreview() {
       <div class="pv-stat"><div class="l">최신 y-y</div><div class="m">${fmtSigned(lastYy?.value)}%</div></div>
       <div class="pv-stat"><div class="l">전망 종점 y-y</div><div class="m">${fmtSigned(endYy?.value)}%<span>${endYy?.period ?? ''}</span></div></div>
     </div>
+    ${exclusionFootnote(result.guide.excluded) ? `<div class="pv-note">${esc(exclusionFootnote(result.guide.excluded))}</div>` : ''}
     ${warnings.length ? `<ul class="pv-warn">${warnings.map((w) => `<li>${esc(w.message)}</li>`).join('')}</ul>` : ''}
     <div class="pv-charts">
       <div class="pv-chart" id="pv-yoy"></div>
