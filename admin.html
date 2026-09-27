@@ -58,6 +58,9 @@
   .pv-stat .l { font-size: 10px; color: var(--muted); margin-bottom: 5px; }
   .pv-stat .m { font-size: 19px; font-weight: 600; font-family: var(--mono); }
   .pv-stat .m span { font-size: 10px; color: var(--muted); margin-left: 5px; font-weight: 400; }
+  .pv-stat .sub { font-size: 10px; color: var(--muted); margin-top: 5px; font-family: var(--mono); }
+  .pv-warn { margin: 0 0 14px; padding: 9px 13px 9px 28px; font-size: 12px; font-family: var(--mono); color: var(--forecast); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; }
+  .pv-block { padding: 14px 16px; font-size: 13px; color: var(--bad); background: var(--panel-2); border: 1px solid var(--bad); border-radius: 8px; overflow-wrap: anywhere; }
   .pv-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .pv-chart { height: 260px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
 
@@ -104,7 +107,8 @@
   <!-- 2. CSV 업로드 -->
   <div class="card">
     <h2>2. CSV 업로드</h2>
-    <p class="hint">KOSIS 소비자물가지수 원본 CSV (wide 형식, 총지수 행 포함).</p>
+    <p class="hint">KOSIS 소비자물가지수 원본 CSV (wide 형식, 총지수 행 포함). 저장된 <span style="font-family:var(--mono)">data/{시리즈}.js</span> 이력에 <b>병합</b>되므로 최근 구간만 올리면 됩니다 —
+      기준년 변경 판정을 위해 저장 이력의 마지막 달 이전 <b>2개월 이상</b>을 포함하세요.</p>
     <label class="dropzone" id="dropzone" for="file-input">
       여기로 <b>CSV 파일을 드래그</b>하거나 클릭해서 선택
     </label>
@@ -122,7 +126,7 @@
   <!-- 4. 미리보기 -->
   <div class="card">
     <h2>4. 전망 미리보기</h2>
-    <p class="hint">선택한 데이터로 calc 엔진이 계산한 결과. 이상 없으면 export.</p>
+    <p class="hint">저장 이력 + 업로드 병합 결과로 calc 엔진이 계산한 결과. 이상 없으면 export.</p>
     <div id="preview"></div>
   </div>
 
@@ -131,6 +135,7 @@
     <h2>5. 발행</h2>
     <p class="hint">data/*.js 파일을 생성해 다운로드합니다.</p>
     <button class="btn accent" id="export-btn" disabled>data 파일 다운로드</button>
+    <div class="status" id="export-reason"></div>
     <div class="flow">흐름: <b>다운로드</b> → data/ 폴더에 넣기 → <b>GitHub 커밋</b> → 조회 페이지 자동 반영</div>
   </div>
 
