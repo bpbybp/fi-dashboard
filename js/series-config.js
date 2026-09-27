@@ -69,6 +69,15 @@ export function seasonalExclusionsFor(seriesId) {
   return SEASONAL_EXCLUSIONS.filter((e) => e.series === seriesId).map(({ series, ...e }) => e);
 }
 
+// 추세 보정 참고값(js/trend-ref.js)의 b — gap = a + b·x 회귀 기울기.
+// 출처: analysis 8e171c2 (scripts/analysis/cpi-gap-bias.mjs), 목표월 2011-01~2026-08, 1개월 앞 전망,
+// 10년 창, "2025-08·09 제외" 추정 버전. a≈0 (|t|<0.6) 확인. 다른 창에서는 참고 정확도 낮음.
+export const TREND_B = {
+  'kr-cpi-headline': { b: 0.69, windowYears: 10 },
+  'kr-cpi-core': { b: 0.81, windowYears: 10 },
+  'kr-cpi-lifecost': { b: 0.60, windowYears: 10 },
+};
+
 // guide.excluded → "시즈널 제외: 2025-08, 2025-09 (통신요금 한시 할인)". 비었으면 ''.
 export function exclusionFootnote(excluded) {
   if (!excluded?.length) return '';

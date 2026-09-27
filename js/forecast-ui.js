@@ -3,7 +3,8 @@
 
 import { buildForecast, computeMM, annualYoYSummary } from './calc.js';
 import { renderIndexChart, renderMmChart, renderYoyChart } from './chart.js';
-import { getSeriesData, getConfig, seasonalExclusionsFor, exclusionFootnote } from './series-config.js';
+import { getSeriesData, getConfig, seasonalExclusionsFor, exclusionFootnote, TREND_B } from './series-config.js';
+import { computeTrendRef } from './trend-ref.js';
 
 // 이 페이지가 표시하는 시리즈 (헤드라인 / 근원). 신규 series id 추가 없이
 // 기존 스캐폴딩(series-config.js)에 등록된 id만 노출한다.
@@ -117,6 +118,7 @@ function renderAll() {
   renderAnnual(annualYoYSummary(DATA, scenario(), meta()));
   renderSummary(result);
   renderEditor(result);
+  renderTrendRef();
   renderMethodology(result);
 }
 
@@ -137,6 +139,7 @@ function renderMissing() {
      </div>`;
   document.getElementById('editor-body').innerHTML =
     '<div class="empty">데이터 파일 생성 후 m-m 편집이 가능합니다.</div>';
+  document.getElementById('trend-ref').innerHTML = '';
   renderMethodology();
 }
 
@@ -208,6 +211,37 @@ function renderSummary(result) {
       <div class="stat-main">${c.main}<span class="stat-unit">${c.unit}</span></div>
       <div class="stat-sub">${c.sub}</div>
     </div>`).join('');
+}
+
+// ── 추세 보정 참고값 (override 편집기 옆, 표시 전용) ──
+// computeTrendRef 결과를 보여 주기만 한다. override·localStorage·시나리오 export 로 흘려보내지 않으며
+// 자동 입력 버튼도 두지 않는다 — 반영하려면 사용자가 편집기에 직접 입력.
+function renderTrendRef() {
+  const el = document.getElementById('trend-ref');
+  if (!el) return;
+  const bCfg = TREND_B[state.seriesId];
+  const r = META?.value_type === 'index' && META?.frequency === 'monthly'
+    ? computeTrendRef(DATA, { windowYears: state.windowYears, exclusions: seasonalExclusionsFor(META.series_id), b: bCfg?.b })
+    : null;
+  if (!r) { el.innerHTML = ''; return; }
+  const row = (label, level, diff) =>
+    `<tr><td>${label}</td><td>${fmt(level)}</td><td>${diff === null ? '' : fmtSigned(diff, 3)}</td></tr>`;
+  el.innerHTML = `
+    <h3>추세 보정 참고 (${r.asOf} 기준, ${r.windowYears}yr 창)</h3>
+    <div class="tr-label">참고값 — 자동 적용되지 않음. override는 직접 입력</div>
+    <table>
+      <thead><tr><th>지표</th><th>연율 %</th><th>월 차이 %p</th></tr></thead>
+      <tbody>
+        ${row('W 창 평균', r.W, null)}
+        ${row('c1 12M y-y (원계열)', r.c1, r.diff.c1)}
+        ${row('c2 12M y-y (기저 정상화)', r.c2, r.diff.c2)}
+        ${row('c3 6M 계절조정 근사', r.c3, r.diff.c3)}
+        <tr><td>b</td><td>${r.b === null ? '—' : fmt(r.b)}</td><td></td></tr>
+        <tr class="tr-sug"><td>제안 보정 (월)</td><td></td><td>${r.suggestion === null ? '—' : fmtSigned(r.suggestion)}</td></tr>
+      </tbody>
+    </table>
+    <div class="tr-foot">제안 = b × mean(c2, c3 월 차이). 월 차이 = (지표 − W)/12.
+      ${r.bWarning ? `<br><span class="tr-warn">${r.bWarning}</span>` : ''}</div>`;
 }
 
 // ── m-m override 편집기 ──

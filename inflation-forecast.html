@@ -96,6 +96,19 @@
   .btn:hover { border-color: var(--accent); }
   .btn.accent { background: var(--accent); color: #08111f; border-color: var(--accent); font-weight: 600; }
 
+  .editor-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { .editor-wrap { grid-template-columns: minmax(0, 1fr); } }
+  .trend-ref { background: var(--panel-2); border: 1px dashed var(--border-2); border-radius: 8px; padding: 10px 12px; font-size: 11px; font-family: var(--mono); color: var(--muted); }
+  .trend-ref:empty { display: none; }
+  .trend-ref h3 { font-size: 12px; margin: 0 0 2px; color: var(--text); font-family: var(--sans); }
+  .trend-ref .tr-label { color: var(--forecast); margin-bottom: 8px; font-family: var(--sans); }
+  .trend-ref table { width: 100%; border-collapse: collapse; }
+  .trend-ref th, .trend-ref td { padding: 3px 4px; text-align: right; border-bottom: 1px solid var(--border); font-weight: 400; }
+  .trend-ref th:first-child, .trend-ref td:first-child { text-align: left; }
+  .trend-ref td { color: var(--text); }
+  .trend-ref tr.tr-sug td { color: var(--forecast); font-weight: 600; border-bottom: none; }
+  .trend-ref .tr-foot { margin-top: 6px; line-height: 1.45; }
+  .trend-ref .tr-warn { color: var(--override); }
   .editor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
   .editor-row {
     display: grid; grid-template-columns: 62px 1fr 70px 66px; align-items: center; gap: 8px;
@@ -236,7 +249,11 @@
         <button class="btn accent" id="export-scenario">시나리오 export</button>
       </div>
     </div>
-    <div class="editor-grid" id="editor-body"></div>
+    <div class="editor-wrap">
+      <div class="editor-grid" id="editor-body"></div>
+      <!-- 추세 보정 참고값 (js/trend-ref.js) — 표시 전용, override 에 자동 반영하지 않음 -->
+      <aside class="trend-ref" id="trend-ref"></aside>
+    </div>
 
     <div class="legend-note">
       <span class="dot" style="background:#58a6ff"></span>실측 &nbsp;
