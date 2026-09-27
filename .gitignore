@@ -1,5 +1,6 @@
 *.csv
 !scripts/calibration/reference.csv
+!analysis/*.csv
 *.xlsx
 tests/local/
 cors-test.html
