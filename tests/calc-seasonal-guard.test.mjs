@@ -14,10 +14,12 @@ const { seasonalAvgMM, buildForecast, computeMM, nextPeriod, MIN_SEASONAL_SAMPLE
 import * as usCalc from '../js/us-inflation-calc.js';
 import * as nowcast from '../js/us-energy-nowcast.js';
 
+const AS_OF = '2026-06';
 function loadStored(id) {
   const ctx = { window: {} };
   vm.runInNewContext(readFileSync(new URL(`../data/${id}.js`, import.meta.url), 'utf8'), ctx);
-  return ctx.window.FENRIR_SERIES[id].series;
+  // 2026-06 시점으로 고정 — 이후 data 갱신(07·08월 추가 등)과 무관하게 같은 입력.
+  return ctx.window.FENRIR_SERIES[id].series.filter((p) => p.period <= AS_OF);
 }
 const HEADLINE = loadStored('kr-cpi-headline');
 

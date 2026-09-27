@@ -12,10 +12,12 @@ import { parseKosisCsv, matchRow } from '../js/csv-parse.js';
 import { getConfig } from '../js/series-config.js';
 
 // 실제 저장 이력(data/kr-cpi-headline.js, 1965-01~2026-06) — 자기등록 스크립트를 vm으로 로드.
+const AS_OF = '2026-06';
 function loadStored(id) {
   const ctx = { window: {} };
   vm.runInNewContext(readFileSync(new URL(`../data/${id}.js`, import.meta.url), 'utf8'), ctx);
-  return ctx.window.FENRIR_SERIES[id].series;
+  // 2026-06 시점으로 고정 — 이후 data 갱신(07·08월 추가 등)과 무관하게 같은 입력.
+  return ctx.window.FENRIR_SERIES[id].series.filter((p) => p.period <= AS_OF);
 }
 const EXISTING = loadStored('kr-cpi-headline');
 const valueAt = (series, period) => series.find((p) => p.period === period)?.value;
