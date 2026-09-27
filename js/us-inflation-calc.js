@@ -15,6 +15,8 @@ import {
   rollingSeasonalAvgMM,
   seasonalAvgMM,
   seasonalTrimmedAvgMM,
+  assertSeasonalCoverage,
+  insufficientMonths,
   recentAvgMM,
   resolveForecastMM,
   projectIndex,
@@ -67,6 +69,7 @@ const EMPTY_GUIDE = () => ({
   seasonal_trimmed_window: [],
   recent_6m_avg: 0,
   recent_12m_avg: 0,
+  insufficient_months: [],
 });
 
 // buildForecast(calc.js) 월간·index 전용 경로와 동일한 수식이되, m-m만 gap-aware.
@@ -108,11 +111,13 @@ export function buildForecastUS(index_history, scenario, meta, forecastMonths = 
   // 지평 1~12M는 rolling과 표본 동일(값 불변), 12M 초과 연장 구간만 rolling과 갈림 →
   // 연평균 카드(annualYoYSummaryUS, 익년 12월까지 고정 윈도우 연장)와 차트 전망선을 정렬하기 위해 고정 사용.
   const seasonalAvgFixed = seasonalAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths);
+  assertSeasonalCoverage(seasonalAvgFixed);
   const guide = {
     seasonal_avg_window: seasonalAvgFixed,
     seasonal_trimmed_window: seasonalTrimmedAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths),
     recent_6m_avg: recentAvgMM(mm_history, 6),
     recent_12m_avg: recentAvgMM(mm_history, 12),
+    insufficient_months: insufficientMonths(seasonalAvgFixed),
   };
 
   const last24 = mm_history.slice(-24).map((p) => p.period);

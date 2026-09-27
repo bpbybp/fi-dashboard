@@ -11,6 +11,8 @@ import vm from 'node:vm';
 // namespace import — 신규 export(MIN_SEASONAL_SAMPLES)가 없어도 파일 전체가 아닌 해당 테스트만 실패.
 import * as calc from '../js/calc.js';
 const { seasonalAvgMM, buildForecast, computeMM, nextPeriod, MIN_SEASONAL_SAMPLES } = calc;
+import * as usCalc from '../js/us-inflation-calc.js';
+import * as nowcast from '../js/us-energy-nowcast.js';
 
 function loadStored(id) {
   const ctx = { window: {} };
@@ -91,3 +93,41 @@ test('회귀 — 전체 이력의 시즈널 값은 10년 달력월 단순평균 
   const mean = samples.reduce((s, p) => s + p.value, 0) / samples.length;
   assert.ok(Math.abs(jul.value - mean) < 1e-12);
 });
+
+// ── 회귀: 가드 도입 전 출력 골든(tests/fixtures/calc-golden.json) 과 완전 일치 ──
+// 입력까지 픽스처에 담아 data 갱신과 무관. 공용 호출자(KR buildForecast/annualYoYSummary,
+// US buildForecastUS/annualYoYSummaryUS, 나우캐스트 seasonalMonthMap/seasonalForPeriod) 전부.
+
+const GOLDEN = JSON.parse(readFileSync(new URL('./fixtures/calc-golden.json', import.meta.url), 'utf8'));
+const pv = (arr) => arr.map(({ period, value }) => ({ period, value }));
+const pickForecast = (r) => ({
+  index_forecast: r.index_forecast, mm_forecast: r.mm_forecast, yoy_forecast: r.yoy_forecast,
+  seasonal_avg_window: pv(r.guide.seasonal_avg_window),
+  seasonal_trimmed_window: pv(r.guide.seasonal_trimmed_window),
+  recent_6m_avg: r.guide.recent_6m_avg, recent_12m_avg: r.guide.recent_12m_avg,
+  mm_guide_full: pv(r.mm_guide_full),
+});
+const scen = (id, ov) => ({ series_id: id, scenario_id: 'base', label: 'Base', mm_overrides: ov });
+const metaW = (id, w) => ({ series_id: id, window_years: w, notes: '', comparison_label: '' });
+
+for (const c of GOLDEN.cases) {
+  const input = GOLDEN.inputs[c.id];
+  if (c.kind === 'kr') {
+    test(`골든 — KR ${c.id} window ${c.window_years}y${c.overrides.length ? ' +override' : ''}`, () => {
+      assert.deepEqual(pickForecast(buildForecast(input, scen(c.id, c.overrides), metaW(c.id, c.window_years), 12)), c.forecast);
+      assert.deepEqual(calc.annualYoYSummary(input, scen(c.id, c.overrides), metaW(c.id, c.window_years)), c.annual);
+    });
+  } else if (c.kind === 'us') {
+    test(`골든 — US ${c.id} window 10y`, () => {
+      assert.deepEqual(pickForecast(usCalc.buildForecastUS(input, scen(c.id, []), metaW(c.id, 10), 12)), c.forecast);
+      assert.deepEqual(usCalc.annualYoYSummaryUS(input, scen(c.id, []), metaW(c.id, 10)), c.annual);
+    });
+  } else {
+    test(`골든 — 나우캐스트 시즈널 ${c.id}`, () => {
+      const mm = usCalc.computeMMGapAware(input);
+      const end = input.at(-1).period;
+      assert.deepEqual([...nowcast.seasonalMonthMap(mm, 10, end)], c.monthMap);
+      assert.equal(nowcast.seasonalForPeriod(mm, end, nextPeriod(end)), c.forPeriod);
+    });
+  }
+}

@@ -94,7 +94,11 @@ export function computeQuarterlyYY(history) {
   return computeYY(history);
 }
 
+// 달력월 표본이 이보다 적으면 시즈널 가이드를 insufficient 로 표시.
+export const MIN_SEASONAL_SAMPLES = 3;
+
 // 시즈널 평균 m-m: 1~12월 각각의 N년 평균 (고정 endPeriod 윈도우).
+// 각 항목 { period, value, samples, insufficient }. 표본 0개면 value = null (0% 로 대체하지 않음).
 export function seasonalAvgMM(mmHistory, windowYears, endPeriod, forecastMonths) {
   const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod);
   const result = [];
@@ -103,24 +107,48 @@ export function seasonalAvgMM(mmHistory, windowYears, endPeriod, forecastMonths)
     const samples = byMonth.get(periodMonth(p)) ?? [];
     const value = samples.length > 0
       ? samples.reduce((s, v) => s + v, 0) / samples.length
-      : 0;
-    result.push({ period: p, value });
+      : null;
+    result.push(seasonalPoint(p, value, samples.length));
     p = nextPeriod(p);
   }
   return result;
 }
 
 // trimmed mean (상하위 trimRatio% 제거. 기본 0.1). trim 후 0개면 trim 없는 평균 폴백.
+// 항목 형태·표본 0개 처리는 seasonalAvgMM 과 동일.
 export function seasonalTrimmedAvgMM(mmHistory, windowYears, endPeriod, forecastMonths, trimRatio = 0.1) {
   const byMonth = collectMonthSamples(mmHistory, windowYears, endPeriod);
   const result = [];
   let p = nextPeriod(endPeriod);
   for (let i = 0; i < forecastMonths; i++) {
     const samples = byMonth.get(periodMonth(p)) ?? [];
-    result.push({ period: p, value: trimmedMean(samples, trimRatio) });
+    const value = samples.length > 0 ? trimmedMean(samples, trimRatio) : null;
+    result.push(seasonalPoint(p, value, samples.length));
     p = nextPeriod(p);
   }
   return result;
+}
+
+function seasonalPoint(period, value, samples) {
+  return { period, value, samples, insufficient: samples < MIN_SEASONAL_SAMPLES };
+}
+
+// 시즈널 가이드에 표본 0개 달이 있으면 던진다 — 0% 전망으로 조용히 진행하지 않는다.
+export function assertSeasonalCoverage(guide) {
+  const empty = [...new Set(guide.filter((g) => g.samples === 0).map((g) => periodMonth(g.period)))];
+  if (empty.length > 0) {
+    throw new Error(`시즈널 표본 0개 — ${empty.join('·')}월 전망 불가 (이력이 너무 짧음)`);
+  }
+}
+
+// 표본 < MIN_SEASONAL_SAMPLES 인 달력월 목록 [{ month, samples }] (가이드 순서, 중복 제거).
+export function insufficientMonths(guide) {
+  const seen = new Map();
+  for (const g of guide) {
+    const month = periodMonth(g.period);
+    if (g.insufficient && !seen.has(month)) seen.set(month, { month, samples: g.samples });
+  }
+  return [...seen.values()];
 }
 
 // 시점별 rolling 시즈널 평균. 각 period p마다 윈도우 [p - windowYears*12 .. p-1]을 잡고
@@ -192,6 +220,7 @@ const EMPTY_GUIDE = () => ({
   seasonal_trimmed_window: [],
   recent_6m_avg: 0,
   recent_12m_avg: 0,
+  insufficient_months: [],
 });
 
 export function buildForecast(
@@ -271,11 +300,13 @@ export function buildForecast(
   // rolling과 갈린다. 연평균 요약 카드(annualYoYSummary)가 익년 12월까지 고정 윈도우로 연장하므로,
   // 카드와 차트 전망선이 전 지평에서 일치하도록 엔진도 고정 윈도우로 정렬.
   const seasonalAvgFixed = seasonalAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths);
+  assertSeasonalCoverage(seasonalAvgFixed);
   const guide = {
     seasonal_avg_window: seasonalAvgFixed,
     seasonal_trimmed_window: seasonalTrimmedAvgMM(mm_history, meta.window_years, endPeriod, forecastMonths),
     recent_6m_avg: recentAvgMM(mm_history, 6),
     recent_12m_avg: recentAvgMM(mm_history, 12),
+    insufficient_months: insufficientMonths(seasonalAvgFixed),
   };
 
   // mm_guide_full: history 마지막 24개월(회고적 rolling) + forecast 구간(고정 윈도우, 위 가이드와 동일).
@@ -345,6 +376,7 @@ export function annualYoYSummary(index_history, scenario, meta, mmFn = computeMM
 
   const mmHistory = mmFn(sorted);
   const guide = seasonalAvgMM(mmHistory, meta.window_years, lastPeriod, periods.length);
+  assertSeasonalCoverage(guide);
   const overrides = new Map(scenario.mm_overrides.map((o) => [o.period, o.mm]));
 
   // 성분 출처: 실측 / 입력(override) / 가이드.

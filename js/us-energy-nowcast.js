@@ -20,7 +20,8 @@ import { seasonalAvgMM, comparePeriods, periodMonth } from './calc.js';
 export function seasonalMonthMap(mmHistory, windowYears, endPeriod) {
   const proj = seasonalAvgMM(mmHistory, windowYears, endPeriod, 12);
   const map = new Map();
-  for (const x of proj) map.set(periodMonth(x.period), x.value);
+  // 표본 0개 달(value null)은 종전대로 0 — 나우캐스트 입력은 장기 이력이라 실사용에선 발생하지 않음.
+  for (const x of proj) map.set(periodMonth(x.period), x.value ?? 0);
   return map;
 }
 
@@ -124,5 +125,6 @@ export function synthesizeHeadlineMM({ coreSeas, foodSeas, energySeas, energyNow
 export function seasonalForPeriod(mmHistory, endPeriod, targetPeriod, windowYears = 10) {
   const g = seasonalAvgMM(mmHistory, windowYears, endPeriod, 1);
   const hit = g.find((x) => x.period === targetPeriod);
-  return hit ? hit.value : 0;
+  return hit?.value ?? 0; // 표본 0개(null)도 종전대로 0
+
 }
