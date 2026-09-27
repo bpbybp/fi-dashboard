@@ -10,12 +10,14 @@ import { renderYoyChart, renderMmChart } from './chart.js';
 import { parseKosisCsv, matchRow } from './csv-parse.js';
 import { SERIES_CONFIG, ALL_SERIES_IDS, getConfig, getSeriesData } from './series-config.js';
 import { mergeSeries } from './series-merge.js';
+import { buildDataFileContent } from './data-file.js';
 
 const DATA_DIR = 'data';
 
 const state = {
   parsed: null,        // parseKosisCsv 결과
   selectedRowIdx: -1,  // 선택된 데이터 행
+  matchMode: null,     // 'auto' | 'manual' — 미리보기에 매칭 행과 함께 표시
   seriesId: 'kr-cpi-headline',
   // 저장 이력 로드 상태: status 'loading' | 'ok' | 'error'
   existing: { id: null, status: 'loading', meta: null, series: null, error: '' },
@@ -86,6 +88,7 @@ function autoMatch() {
   const cfg = getConfig(state.seriesId);
   const row = matchRow(state.parsed, cfg?.kosis_hint);
   state.selectedRowIdx = row ? state.parsed.rows.indexOf(row) : -1;
+  state.matchMode = row ? 'auto' : null;
 }
 
 // ── 행 목록 렌더 ──
@@ -106,6 +109,7 @@ function renderRows() {
   el.querySelectorAll('input[name=rowsel]').forEach((inp) => {
     inp.addEventListener('change', () => {
       state.selectedRowIdx = Number(inp.value);
+      state.matchMode = 'manual';
       renderRows();
       renderPreview();
     });
@@ -125,9 +129,18 @@ function setExport(enabled, reason) {
   r.className = 'status ' + (reason ? 'bad' : '');
 }
 
+// "시리즈 ← 매칭된 CSV 행: <원문 행명>" — 수동 선택 시 엉뚱한 행을 눈으로 잡기 위해 항상 표시.
+function matchLine() {
+  const row = state.parsed?.rows[state.selectedRowIdx];
+  if (!row) return '';
+  const mode = state.matchMode === 'manual' ? '수동 선택' : '자동 매칭';
+  return `<div class="pv-match"><b>${esc(state.seriesId)}</b> ← 매칭된 CSV 행: <b>${esc(row.account || '(무명)')}</b>
+    <span class="${state.matchMode === 'manual' ? 'manual' : ''}">(${mode})</span></div>`;
+}
+
 function blockPreview(el, msg) {
   state.merged = null;
-  el.innerHTML = `<div class="pv-block">${esc(msg)}</div>`;
+  el.innerHTML = `${matchLine()}<div class="pv-block">${esc(msg)}</div>`;
   setExport(false, msg);
 }
 
@@ -175,7 +188,7 @@ function renderPreview() {
   const lastYy = result.yoy_history[result.yoy_history.length - 1];
   const endYy = result.yoy_forecast[result.yoy_forecast.length - 1];
 
-  el.innerHTML = `
+  el.innerHTML = `${matchLine()}
     <div class="pv-stats">
       <div class="pv-stat"><div class="l">데이터 포인트</div><div class="m">${merge.series.length}</div>
         <div class="sub">기존 ${stats.kept + stats.revised} · 신규 ${stats.added} · 개정 ${stats.revised}</div></div>
@@ -193,35 +206,7 @@ function renderPreview() {
   renderMmChart(document.getElementById('pv-mm'), result);
 }
 
-// ── export: data/{seriesId}.js 생성 → 다운로드 ──
-// 저장 파일과 같은 직렬화({"k": v, ...}, ", " 구분)로 써서 diff 가 추가·개정 달만 드러나게 한다.
-function pyJson(obj) {
-  return '{' + Object.entries(obj).map(([k, v]) => `${JSON.stringify(k)}: ${JSON.stringify(v)}`).join(', ') + '}';
-}
-
-function buildDataFileContent(seriesId, series, baseMeta) {
-  const cfg = getConfig(seriesId) || {};
-  const meta = {
-    series_id: seriesId,
-    display_name: cfg.display_name || seriesId,
-    source: cfg.source || 'manual',
-    unit: cfg.unit || '',
-    value_type: cfg.value_type || 'index',
-    frequency: cfg.frequency || 'monthly',
-    ...(baseMeta || {}), // 저장 meta 의 추가 필드(kosis_account 등) 보존
-    last_updated: series[series.length - 1]?.period || '',
-  };
-  const sorted = [...series].sort((a, b) => (a.period < b.period ? -1 : a.period > b.period ? 1 : 0));
-  let out = `// ${meta.display_name} (${meta.source.toUpperCase()}, ${meta.unit})\n`;
-  out += `// admin 도구 생성 — ${new Date().toISOString().slice(0, 10)}. 저장 이력 + 업로드 병합. 레지스트리 자기등록 (file:// 호환).\n`;
-  out += `window.FENRIR_SERIES = window.FENRIR_SERIES || {};\n`;
-  out += `window.FENRIR_SERIES[${JSON.stringify(seriesId)}] = {\n`;
-  out += `  meta: ${pyJson(meta)},\n`;
-  out += `  series: [${sorted.map(pyJson).join(', ')}]\n`;
-  out += `};\n`;
-  return out;
-}
-
+// ── export: data/{seriesId}.js 생성(data-file.js 직렬화) → 다운로드 ──
 function exportData() {
   const merge = state.merged;
   if (!merge || state.existing.status !== 'ok') return;

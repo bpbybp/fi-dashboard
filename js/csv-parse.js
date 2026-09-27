@@ -93,8 +93,10 @@ export function parseKosisCsv(text) {
 // KOSIS 계정항목 라벨은 공백 변형이 있을 수 있어(예: "식료품 및 에너지 제외지수"
 // vs 힌트 "식료품및에너지제외지수") 비교 전 모든 공백을 제거해 정규화한다.
 // 총지수처럼 공백이 없는 라벨은 정규화해도 동일하므로 헤드라인 매칭에는 영향 없음.
-function normKey(s) {
-  return (s || '').replace(/\s+/g, '');
+// KOSIS 특수분류 CSV 는 라벨 끝에 각주 번호가 붙는다("생활물가지수 4)"). 끝 각주를 떼지 않으면
+// 매칭이 실패해 수동 선택으로 넘어가고, 거기서 총지수 행이 골라져 생활물가 이력이 오염됐다(66652f9).
+export function normKey(s) {
+  return (s || '').replace(/\s*\d+\)\s*$/, '').replace(/\s+/g, '');
 }
 export function matchRow(parsed, hint) {
   if (!hint) return null;
