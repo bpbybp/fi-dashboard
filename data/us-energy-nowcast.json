@@ -9,7 +9,7 @@
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
         "last_updated": "2026-09",
-        "last_weeks": 1
+        "last_weeks": 4
       },
       "data": [
         {
@@ -1074,8 +1074,8 @@
         },
         {
           "period": "2026-09",
-          "value": 4.157,
-          "weeks": 1
+          "value": 4.354749999999999,
+          "weeks": 4
         }
       ]
     },
@@ -2150,8 +2150,8 @@
         },
         {
           "period": "2026-09",
-          "value": 97.462,
-          "weeks": 10
+          "value": 98.41800000000002,
+          "weeks": 15
         }
       ]
     },
