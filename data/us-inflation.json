@@ -1731,7 +1731,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-07"
+        "last_updated": "2026-08"
       },
       "data": [
         {
@@ -2312,271 +2312,275 @@
         },
         {
           "period": "2021-01",
-          "value": 106.147
+          "value": 106.065
         },
         {
           "period": "2021-02",
-          "value": 106.5
+          "value": 106.441
         },
         {
           "period": "2021-03",
-          "value": 107.054
+          "value": 107.019
         },
         {
           "period": "2021-04",
-          "value": 107.618
+          "value": 107.553
         },
         {
           "period": "2021-05",
-          "value": 108.175
+          "value": 108.069
         },
         {
           "period": "2021-06",
-          "value": 108.76
+          "value": 108.668
         },
         {
           "period": "2021-07",
-          "value": 109.256
+          "value": 109.162
         },
         {
           "period": "2021-08",
-          "value": 109.674
+          "value": 109.599
         },
         {
           "period": "2021-09",
-          "value": 110.034
+          "value": 109.948
         },
         {
           "period": "2021-10",
-          "value": 110.762
+          "value": 110.7
         },
         {
           "period": "2021-11",
-          "value": 111.5
+          "value": 111.435
         },
         {
           "period": "2021-12",
-          "value": 112.191
+          "value": 112.088
         },
         {
           "period": "2022-01",
-          "value": 112.805
+          "value": 112.678
         },
         {
           "period": "2022-02",
-          "value": 113.471
+          "value": 113.37
         },
         {
           "period": "2022-03",
-          "value": 114.469
+          "value": 114.425
         },
         {
           "period": "2022-04",
-          "value": 114.812
+          "value": 114.688
         },
         {
           "period": "2022-05",
-          "value": 115.525
+          "value": 115.401
         },
         {
           "period": "2022-06",
-          "value": 116.638
+          "value": 116.512
         },
         {
           "period": "2022-07",
-          "value": 116.631
+          "value": 116.65
         },
         {
           "period": "2022-08",
-          "value": 116.956
+          "value": 116.924
         },
         {
           "period": "2022-09",
-          "value": 117.371
+          "value": 117.307
         },
         {
           "period": "2022-10",
-          "value": 117.919
+          "value": 117.902
         },
         {
           "period": "2022-11",
-          "value": 118.224
+          "value": 118.221
         },
         {
           "period": "2022-12",
-          "value": 118.384
+          "value": 118.372
         },
         {
           "period": "2023-01",
-          "value": 119.018
+          "value": 118.938
         },
         {
           "period": "2023-02",
-          "value": 119.369
+          "value": 119.265
         },
         {
           "period": "2023-03",
-          "value": 119.538
+          "value": 119.564
         },
         {
           "period": "2023-04",
-          "value": 119.951
+          "value": 119.886
         },
         {
           "period": "2023-05",
-          "value": 120.15
+          "value": 120.129
         },
         {
           "period": "2023-06",
-          "value": 120.469
+          "value": 120.41
         },
         {
           "period": "2023-07",
-          "value": 120.607
+          "value": 120.571
         },
         {
           "period": "2023-08",
-          "value": 120.97
+          "value": 120.944
         },
         {
           "period": "2023-09",
-          "value": 121.419
+          "value": 121.403
         },
         {
           "period": "2023-10",
-          "value": 121.484
+          "value": 121.557
         },
         {
           "period": "2023-11",
-          "value": 121.493
+          "value": 121.636
         },
         {
           "period": "2023-12",
-          "value": 121.66
+          "value": 121.76
         },
         {
           "period": "2024-01",
-          "value": 122.23
+          "value": 122.206
         },
         {
           "period": "2024-02",
-          "value": 122.598
+          "value": 122.613
         },
         {
           "period": "2024-03",
-          "value": 123.038
+          "value": 123.093
         },
         {
           "period": "2024-04",
-          "value": 123.341
+          "value": 123.289
         },
         {
           "period": "2024-05",
-          "value": 123.348
+          "value": 123.369
         },
         {
           "period": "2024-06",
-          "value": 123.539
+          "value": 123.504
         },
         {
           "period": "2024-07",
-          "value": 123.736
+          "value": 123.701
         },
         {
           "period": "2024-08",
-          "value": 123.889
+          "value": 123.891
         },
         {
           "period": "2024-09",
-          "value": 124.164
+          "value": 124.146
         },
         {
           "period": "2024-10",
-          "value": 124.494
+          "value": 124.482
         },
         {
           "period": "2024-11",
-          "value": 124.637
+          "value": 124.666
         },
         {
           "period": "2024-12",
-          "value": 124.979
+          "value": 124.984
         },
         {
           "period": "2025-01",
-          "value": 125.417
+          "value": 125.423
         },
         {
           "period": "2025-02",
-          "value": 125.921
+          "value": 125.77
         },
         {
           "period": "2025-03",
-          "value": 125.941
+          "value": 125.869
         },
         {
           "period": "2025-04",
-          "value": 126.15
+          "value": 126.163
         },
         {
           "period": "2025-05",
-          "value": 126.38
+          "value": 126.408
         },
         {
           "period": "2025-06",
-          "value": 126.743
+          "value": 126.73
         },
         {
           "period": "2025-07",
-          "value": 126.96
+          "value": 126.906
         },
         {
           "period": "2025-08",
-          "value": 127.293
+          "value": 127.229
         },
         {
           "period": "2025-09",
-          "value": 127.625
+          "value": 127.601
         },
         {
           "period": "2025-10",
-          "value": 127.871
+          "value": 127.79
         },
         {
           "period": "2025-11",
-          "value": 128.152
+          "value": 128.045
         },
         {
           "period": "2025-12",
-          "value": 128.576
+          "value": 128.455
         },
         {
           "period": "2026-01",
-          "value": 129.023
+          "value": 128.845
         },
         {
           "period": "2026-02",
-          "value": 129.539
+          "value": 129.293
         },
         {
           "period": "2026-03",
-          "value": 130.403
+          "value": 130.105
         },
         {
           "period": "2026-04",
-          "value": 130.946
+          "value": 130.672
         },
         {
           "period": "2026-05",
-          "value": 131.576
+          "value": 131.241
         },
         {
           "period": "2026-06",
-          "value": 131.454
+          "value": 131.106
         },
         {
           "period": "2026-07",
-          "value": 131.659
+          "value": 131.172
+        },
+        {
+          "period": "2026-08",
+          "value": 131.579
         }
       ]
     },
@@ -2590,7 +2594,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-07"
+        "last_updated": "2026-08"
       },
       "data": [
         {
@@ -3171,271 +3175,275 @@
         },
         {
           "period": "2021-01",
-          "value": 106.281
+          "value": 106.168
         },
         {
           "period": "2021-02",
-          "value": 106.501
+          "value": 106.435
         },
         {
           "period": "2021-03",
-          "value": 106.933
+          "value": 106.865
         },
         {
           "period": "2021-04",
-          "value": 107.558
+          "value": 107.493
         },
         {
           "period": "2021-05",
-          "value": 108.099
+          "value": 107.989
         },
         {
           "period": "2021-06",
-          "value": 108.603
+          "value": 108.522
         },
         {
           "period": "2021-07",
-          "value": 109.058
+          "value": 108.971
         },
         {
           "period": "2021-08",
-          "value": 109.409
+          "value": 109.34
         },
         {
           "period": "2021-09",
-          "value": 109.641
+          "value": 109.548
         },
         {
           "period": "2021-10",
-          "value": 110.188
+          "value": 110.119
         },
         {
           "period": "2021-11",
-          "value": 110.77
+          "value": 110.671
         },
         {
           "period": "2021-12",
-          "value": 111.418
+          "value": 111.28
         },
         {
           "period": "2022-01",
-          "value": 111.976
+          "value": 111.822
         },
         {
           "period": "2022-02",
-          "value": 112.468
+          "value": 112.362
         },
         {
           "period": "2022-03",
-          "value": 112.914
+          "value": 112.807
         },
         {
           "period": "2022-04",
-          "value": 113.307
+          "value": 113.178
         },
         {
           "period": "2022-05",
-          "value": 113.703
+          "value": 113.571
         },
         {
           "period": "2022-06",
-          "value": 114.376
+          "value": 114.273
         },
         {
           "period": "2022-07",
-          "value": 114.628
+          "value": 114.658
         },
         {
           "period": "2022-08",
-          "value": 115.276
+          "value": 115.248
         },
         {
           "period": "2022-09",
-          "value": 115.788
+          "value": 115.727
         },
         {
           "period": "2022-10",
-          "value": 116.204
+          "value": 116.186
         },
         {
           "period": "2022-11",
-          "value": 116.539
+          "value": 116.52
         },
         {
           "period": "2022-12",
-          "value": 116.952
+          "value": 116.923
         },
         {
           "period": "2023-01",
-          "value": 117.505
+          "value": 117.415
         },
         {
           "period": "2023-02",
-          "value": 117.929
+          "value": 117.825
         },
         {
           "period": "2023-03",
-          "value": 118.315
+          "value": 118.295
         },
         {
           "period": "2023-04",
-          "value": 118.734
+          "value": 118.671
         },
         {
           "period": "2023-05",
-          "value": 119.083
+          "value": 119.061
         },
         {
           "period": "2023-06",
-          "value": 119.39
+          "value": 119.35
         },
         {
           "period": "2023-07",
-          "value": 119.556
+          "value": 119.515
         },
         {
           "period": "2023-08",
-          "value": 119.689
+          "value": 119.662
         },
         {
           "period": "2023-09",
-          "value": 120.058
+          "value": 120.053
         },
         {
           "period": "2023-10",
-          "value": 120.241
+          "value": 120.321
         },
         {
           "period": "2023-11",
-          "value": 120.374
+          "value": 120.525
         },
         {
           "period": "2023-12",
-          "value": 120.592
+          "value": 120.694
         },
         {
           "period": "2024-01",
-          "value": 121.217
+          "value": 121.201
         },
         {
           "period": "2024-02",
-          "value": 121.537
+          "value": 121.57
         },
         {
           "period": "2024-03",
-          "value": 122.009
+          "value": 122.016
         },
         {
           "period": "2024-04",
-          "value": 122.304
+          "value": 122.252
         },
         {
           "period": "2024-05",
-          "value": 122.383
+          "value": 122.406
         },
         {
           "period": "2024-06",
-          "value": 122.677
+          "value": 122.667
         },
         {
           "period": "2024-07",
-          "value": 122.911
+          "value": 122.872
         },
         {
           "period": "2024-08",
-          "value": 123.128
+          "value": 123.135
         },
         {
           "period": "2024-09",
-          "value": 123.466
+          "value": 123.462
         },
         {
           "period": "2024-10",
-          "value": 123.832
+          "value": 123.816
         },
         {
           "period": "2024-11",
-          "value": 123.962
+          "value": 123.989
         },
         {
           "period": "2024-12",
-          "value": 124.196
+          "value": 124.198
         },
         {
           "period": "2025-01",
-          "value": 124.587
+          "value": 124.609
         },
         {
           "period": "2025-02",
-          "value": 125.145
+          "value": 125.002
         },
         {
           "period": "2025-03",
-          "value": 125.267
+          "value": 125.144
         },
         {
           "period": "2025-04",
-          "value": 125.502
+          "value": 125.524
         },
         {
           "period": "2025-05",
-          "value": 125.79
+          "value": 125.818
         },
         {
           "period": "2025-06",
-          "value": 126.121
+          "value": 126.133
         },
         {
           "period": "2025-07",
-          "value": 126.43
+          "value": 126.363
         },
         {
           "period": "2025-08",
-          "value": 126.714
+          "value": 126.646
         },
         {
           "period": "2025-09",
-          "value": 126.954
+          "value": 126.94
         },
         {
           "period": "2025-10",
-          "value": 127.243
+          "value": 127.165
         },
         {
           "period": "2025-11",
-          "value": 127.469
+          "value": 127.363
         },
         {
           "period": "2025-12",
-          "value": 127.886
+          "value": 127.765
         },
         {
           "period": "2026-01",
-          "value": 128.455
+          "value": 128.27
         },
         {
           "period": "2026-02",
-          "value": 128.961
+          "value": 128.701
         },
         {
           "period": "2026-03",
-          "value": 129.343
+          "value": 129.03
         },
         {
           "period": "2026-04",
-          "value": 129.681
+          "value": 129.395
         },
         {
           "period": "2026-05",
-          "value": 130.147
+          "value": 129.796
         },
         {
           "period": "2026-06",
-          "value": 130.338
+          "value": 129.969
         },
         {
           "period": "2026-07",
-          "value": 130.658
+          "value": 130.133
+        },
+        {
+          "period": "2026-08",
+          "value": 130.455
         }
       ]
     }
