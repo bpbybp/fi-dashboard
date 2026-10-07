@@ -358,6 +358,8 @@ export function buildSeries(rows, opts = {}) {
   const out = {};
   for (const row of Array.isArray(rows) ? rows : []) {
     if (!row) continue;
+    // FRN 의 rate 는 현재 쿠폰이다 — 고정금리 커브에 섞으면 적합이 기준금리 레벨로 끌려간다.
+    if (row.rate_type === 'frn') continue;
     const tau = residualDays(row);
     if (tau == null) continue;
     const rate = num(row.rate);

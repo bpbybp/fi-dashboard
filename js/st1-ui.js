@@ -46,6 +46,7 @@ import {
   buildSeries, residualBp, residualDays, seriesKey, seriesOrder, isSeriesKey,
   MIN_FIT_POINTS, DEFAULT_MAX_WEEKS, DEFAULT_HALF_LIFE_WEEKS,
 } from './st1-curve.js';
+import { parseBatch } from './st1-batch.js';
 
 // ── 상수 ─────────────────────────────────────────────────────────────────
 
@@ -362,6 +363,53 @@ export function applyFilters(rows, f = {}) {
   });
 }
 
+// ── 일괄 붙여넣기 (순수) ─────────────────────────────────────────────────
+
+/** 일괄 후보표에서 고칠 수 있는 칸. 단건 프리뷰와 같은 어휘다. */
+export const BATCH_FIELDS = ['issuer', 'kind', 'sector', 'grade', 'maturity', 'rate', 'amount'];
+
+/** 후보 → 화면 항목. 프리뷰 값은 단건 입력과 같은 `previewFromParsed` 로 만든다. */
+export function batchItemFromCandidate(c) {
+  return {
+    preview: previewFromParsed(c.row),
+    extras: { ...c.extras },
+    raw: c.row.raw,
+    source: c.row.source ?? null,
+    status: c.status,
+    flags: [...c.row.flags],
+    include: !!c.include,
+  };
+}
+
+/**
+ * 화면 항목 → 저장 행. **화면값이 이긴다**(rowFromPreview 재사용).
+ * 부가필드(rate_type·ref·note)는 값이 있을 때만 붙인다 — 없는 필드를 null 로 깔면
+ * 기존 행과 바이트가 갈라져 병합 diff 가 시끄러워진다.
+ */
+export function rowFromBatchItem(item, date) {
+  const row = rowFromPreview(item.preview, { date, raw: item.raw, source: item.source });
+  for (const [k, v] of Object.entries(item.extras || {})) if (v != null && v !== '') row[k] = v;
+  return row;
+}
+
+/**
+ * 선택 항목을 원장에 넣는다. 중복(확정+버퍼 합집합 기준)은 건너뛴다.
+ * @returns {{ buffer: object[], added: number, skipped: number }}
+ */
+export function commitBatch(buffer, committed, items, date) {
+  let buf = Array.isArray(buffer) ? buffer : [];
+  let added = 0;
+  let skipped = 0;
+  for (const it of items) {
+    if (!it.include) continue;
+    const row = rowFromBatchItem(it, date);
+    if (!appendRow(mergeRows(committed, buf).rows, row).added) { skipped++; continue; }
+    buf = appendRow(buf, row).rows;
+    added++;
+  }
+  return { buffer: buf, added, skipped };
+}
+
 // ── DOM (여기서부터 브라우저 전용) ───────────────────────────────────────
 
 const $ = (id) => document.getElementById(id);
@@ -463,6 +511,7 @@ export async function initSt1() {
   fillFilterSelect($('st1-fl-sector'), SECTORS, '섹터 전체');
   fillFilterSelect($('st1-fl-grade'), GRADES, '등급 전체');
 
+  initBatch();
   initChartControls(); // paintPreview·renderLedger 가 renderChart 를 부르므로 그보다 먼저다
   applyStoredTheme();
   paintPreview();
@@ -611,6 +660,116 @@ function clearInput() {
   $('st1-line').focus();
 }
 
+// ── 일괄 붙여넣기 (DOM) ─────────────────────────────────────────────────
+
+/** 화면의 후보 목록. 붙여넣기마다 새로 만든다(고친 값은 다시 파싱하면 사라진다). */
+let BATCH = [];
+
+const BATCH_STATUS = {
+  ok: '',
+  no_rate: '금리 없음',
+  dup_batch: '중복(붙여넣기 안)',
+  dup_ledger: '이미 기록됨',
+};
+
+function initBatch() {
+  const ta = $('st1-batch-text');
+  if (!ta) return;
+  const run = () => {
+    const { candidates, skipped } = parseBatch(ta.value, { date: $('st1-date').value, existing: allRows() });
+    BATCH = candidates.map(batchItemFromCandidate);
+    renderBatch(skipped);
+  };
+  ta.addEventListener('input', run);
+  ta.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitBatchUi(); }
+  });
+  $('st1-batch-commit').addEventListener('click', commitBatchUi);
+  $('st1-batch-clear').addEventListener('click', () => { ta.value = ''; BATCH = []; renderBatch([]); ta.focus(); });
+  $('st1-batch-all').addEventListener('change', (e) => {
+    for (const it of BATCH) it.include = !!e.target.checked;
+    renderBatch(null);
+  });
+
+  // 표 편집은 위임으로 받는다 — 행을 다시 그릴 때마다 리스너를 다시 달지 않기 위함.
+  const body = $('st1-batch-tbody');
+  body.addEventListener('input', (e) => {
+    const t = e.target;
+    const i = Number(t?.dataset?.i);
+    if (!Number.isInteger(i) || !BATCH[i]) return;
+    if (t.dataset.f === 'include') BATCH[i].include = !!t.checked;
+    else if (BATCH_FIELDS.includes(t.dataset.f)) BATCH[i].preview[t.dataset.f] = t.value;
+    else if (t.dataset.f === 'note') BATCH[i].extras.note = t.value;
+    paintBatchCount();
+  });
+  body.addEventListener('change', (e) => {
+    if (e.target?.dataset?.f === 'include') {
+      const i = Number(e.target.dataset.i);
+      if (BATCH[i]) BATCH[i].include = !!e.target.checked;
+      paintBatchCount();
+    }
+  });
+  renderBatch([]);
+}
+
+function paintBatchCount() {
+  const n = BATCH.filter((b) => b.include).length;
+  const btn = $('st1-batch-commit');
+  btn.textContent = `선택 ${n}건 기록 (Ctrl+Enter)`;
+  btn.disabled = n === 0;
+}
+
+function renderBatch(skipped) {
+  const body = $('st1-batch-tbody');
+  const wrap = $('st1-batch-table');
+  if (wrap) wrap.hidden = BATCH.length === 0;
+  if (skipped) {
+    $('st1-batch-summary').textContent = BATCH.length
+      ? `후보 ${BATCH.length}건${skipped.length ? ` · 건너뛴 줄 ${skipped.length}` : ''}`
+      : '';
+    $('st1-batch-summary').title = skipped.length ? `건너뛴 줄:\n${skipped.join('\n')}` : '';
+  }
+  const inp = (i, f, v, w) => `<input type="text" data-i="${i}" data-f="${f}" value="${esc(v)}" style="width:${w}" autocomplete="off" spellcheck="false" class="${String(v ?? '').trim() === '' ? 'is-empty' : ''}">`;
+  body.innerHTML = BATCH.map((b, i) => {
+    const p = b.preview;
+    const memo = [b.extras.rate_type === 'frn' ? 'FRN' : '', b.extras.ref || ''].filter(Boolean).join(' ');
+    const st = BATCH_STATUS[b.status] ?? b.status;
+    return `<tr class="${b.include ? '' : 'is-off'}">
+      <td><input type="checkbox" data-i="${i}" data-f="include" ${b.include ? 'checked' : ''}></td>
+      <td>${inp(i, 'issuer', p.issuer, '8.5em')}</td>
+      <td>${inp(i, 'kind', p.kind, '4em')}</td>
+      <td>${inp(i, 'sector', p.sector, '4.2em')}</td>
+      <td>${inp(i, 'grade', p.grade, '3.2em')}</td>
+      <td>${inp(i, 'maturity', p.maturity, '8em')}</td>
+      <td>${inp(i, 'rate', p.rate, '4em')}</td>
+      <td>${inp(i, 'amount', p.amount, '3.6em')}</td>
+      <td class="mono" style="white-space:nowrap;font-size:11px">${esc(memo)}</td>
+      <td>${inp(i, 'note', b.extras.note ?? '', '10em')}</td>
+      <td class="st">${esc(st)}</td>
+      <td class="raw" title="${esc(b.raw)}">${esc(b.raw)}</td>
+    </tr>`;
+  }).join('');
+  const all = $('st1-batch-all');
+  if (all) all.checked = BATCH.length > 0 && BATCH.every((b) => b.include);
+  paintBatchCount();
+}
+
+function commitBatchUi() {
+  if (!BATCH.some((b) => b.include)) return;
+  const date = $('st1-date').value;
+  const out = commitBatch(BUFFER, COMMITTED, BATCH, date);
+  BUFFER = out.buffer;
+  const saved = saveBuffer();
+  const dup = out.skipped ? ` · 중복 ${out.skipped}건 건너뜀` : '';
+  if (saved) notify(`일괄 기록 ${out.added}건${dup} — 원장 ${allRows().length}건`);
+  else notify(`⚠ 저장 실패 — 화면에는 남았지만 새로고침하면 사라집니다. 지금 내보내기로 파일에 받아두세요.${dup}`, 'warn');
+  $('st1-batch-text').value = '';
+  BATCH = [];
+  renderBatch([]);
+  renderLedger();
+  $('st1-batch-text').focus();
+}
+
 function renderLedger() {
   const rows = allRows();
   const filtered = applyFilters(rows, {
@@ -652,9 +811,9 @@ function renderLedger() {
       ${cell(r.grade, 'mono')}
       ${cell(r.maturity_date || r.maturity_ym, 'mono')}
       ${cell(m == null ? null : `${m}M`, 'num')}
-      ${cell(r.rate == null ? null : r.rate.toFixed(2), 'num')}
+      ${cell(r.rate == null ? (r.ref ?? null) : `${r.rate.toFixed(2)}${r.rate_type === 'frn' ? ' FRN' : ''}`, 'num')}
       ${cell(r.amount == null ? null : r.amount, 'num')}
-      <td class="raw" title="${esc(r.raw)}">${esc(r.raw)}</td>
+      <td class="raw" title="${esc([r.raw, r.ref, r.note, r.source].filter(Boolean).join('\n'))}">${esc(r.raw)}</td>
       <td class="num">${del}</td>
     </tr>`;
   }).join('');
