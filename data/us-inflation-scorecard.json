@@ -378,7 +378,7 @@
         "yoy": null
       },
       "combined": {
-        "mm": 0.319,
+        "mm": 0.308,
         "yoy": null,
         "reg": {
           "b": 0.504,
@@ -396,7 +396,7 @@
           "note": "스팟 유지 가정 (FRED 단일 스팟 DCOILWTICO만 가용 — 선물 커브 미반영). ±20%는 현 스팟 대비 레벨 충격."
         },
         "base": {
-          "mm": 0.319,
+          "mm": 0.308,
           "yoy": null,
           "w_e": 0.075,
           "b_ge": 0.504
@@ -406,21 +406,21 @@
             "key": "up20",
             "shock": 20,
             "gas_delta_mm": 9.104,
-            "mm": 0.663,
+            "mm": 0.652,
             "yoy": null
           },
           {
             "key": "hold",
             "shock": 0,
             "gas_delta_mm": 0,
-            "mm": 0.319,
+            "mm": 0.308,
             "yoy": null
           },
           {
             "key": "down20",
             "shock": -20,
             "gas_delta_mm": -9.104,
-            "mm": -0.025,
+            "mm": -0.036,
             "yoy": null
           }
         ]
