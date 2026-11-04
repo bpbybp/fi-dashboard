@@ -1,7 +1,7 @@
 // data/taylor-pressure.js — 수정 Taylor 압력(i* − 기준금리) 월별. update_taylor.mjs 생성.
 // i* = r* + π + α(π−2) + β·ygap. π=근원CPI YoY, ygap=one-sided HP(λ=1600) 산출갭. 파라미터는 캘리브레이션 동결.
 window.TAYLOR_PRESSURE = {
-  meta: {"asof":"2026-09","params":{"rstar":1.2,"alpha":0.25,"beta":0.45,"piStar":2,"lambda":1600},"lastCpi":"2026-09","lastGdpQuarter":"2026Q3","source":"ECOS 901Y010/QB(근원CPI) · 200Y104/1400(실질GDP,SA) · 722Y001/0101000(기준금리)"},
+  meta: {"asof":"2026-10","params":{"rstar":1.2,"alpha":0.25,"beta":0.45,"piStar":2,"lambda":1600},"lastCpi":"2026-10","lastGdpQuarter":"2026Q3","source":"ECOS 901Y010/QB(근원CPI) · 200Y104/1400(실질GDP,SA) · 722Y001/0101000(기준금리)"},
   series: [
 ["2015-03",1.508],
 ["2015-04",1.225],
@@ -141,6 +141,7 @@ window.TAYLOR_PRESSURE = {
 ["2026-06",1.544],
 ["2026-07",1.481],
 ["2026-08",1.995],
-["2026-09",1.505]
+["2026-09",1.505],
+["2026-10",1.568]
   ]
 };
