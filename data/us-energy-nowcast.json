@@ -9,7 +9,7 @@
         "sa": "NSA",
         "freq": "monthly-avg-of-weekly",
         "last_updated": "2026-11",
-        "last_weeks": 1
+        "last_weeks": 2
       },
       "data": [
         {
@@ -1084,8 +1084,8 @@
         },
         {
           "period": "2026-11",
-          "value": 4.153,
-          "weeks": 1
+          "value": 4.074,
+          "weeks": 2
         }
       ]
     },
@@ -1095,7 +1095,7 @@
         "unit": "Dollars per Barrel",
         "sa": "NSA",
         "freq": "monthly-avg-of-daily",
-        "last_updated": "2026-10"
+        "last_updated": "2026-11"
       },
       "data": [
         {
@@ -2165,8 +2165,13 @@
         },
         {
           "period": "2026-10",
-          "value": 101.37578947368422,
-          "weeks": 19
+          "value": 102.06636363636366,
+          "weeks": 22
+        },
+        {
+          "period": "2026-11",
+          "value": 99.85,
+          "weeks": 2
         }
       ]
     },
@@ -2176,7 +2181,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-09"
+        "last_updated": "2026-10"
       },
       "data": [
         {
@@ -3026,6 +3031,10 @@
         {
           "period": "2026-09",
           "value": 337.834
+        },
+        {
+          "period": "2026-10",
+          "value": 340.197
         }
       ]
     },
@@ -3035,7 +3044,7 @@
         "unit": "Index 1982-1984=100",
         "sa": "SA",
         "freq": "monthly",
-        "last_updated": "2026-09"
+        "last_updated": "2026-10"
       },
       "data": [
         {
@@ -3885,6 +3894,10 @@
         {
           "period": "2026-09",
           "value": 350.477
+        },
+        {
+          "period": "2026-10",
+          "value": 352.134
         }
       ]
     }

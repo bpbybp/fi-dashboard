@@ -13,7 +13,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-09"
+        "last_updated": "2026-10"
       },
       "data": [
         {
@@ -863,6 +863,10 @@
         {
           "period": "2026-09",
           "value": 336.298
+        },
+        {
+          "period": "2026-10",
+          "value": 337.476
         }
       ]
     },
@@ -876,7 +880,7 @@
         "value_type": "index",
         "frequency": "monthly",
         "seasonal_adjustment": "SA",
-        "last_updated": "2026-09"
+        "last_updated": "2026-10"
       },
       "data": [
         {
@@ -1726,6 +1730,10 @@
         {
           "period": "2026-09",
           "value": 338.896
+        },
+        {
+          "period": "2026-10",
+          "value": 339.9
         }
       ]
     },
