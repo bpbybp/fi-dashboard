@@ -16,6 +16,7 @@ export const NAV_ITEMS = [
   { id: 'ce', title: 'CE 캐리·롤다운', file: 'curve-efficiency.html', desc: '구간별 초과캐리·롤다운·BE(브레이크이븐) + 효율균등 커브 대비 괴리 — 어느 만기를 들고 있는 것이 유리한지 측정 (시가평가 3사평균 국고채권)' },
   { id: 'crv1', title: '커브 구간 RV', file: 'crv1.html', desc: '국고 커브 구간별 비중 vs 중립(듀레이션·시간) 갭 + 듀레이션당 기울기(bp/dur) — 최근 250영업일 범위 내 위치 (시가평가 3사평균, 판정·밴드 없음)' },
   { id: 'cs1', title: '크레딧 섹터 스프레드', file: 'cs1.html', desc: '섹터×만기 국고 대비 스프레드(bp) — 현재값·전일 Δ·YTD 범위 바·250일 범위·z250. 발행금리를 올해 범위에 대보는 자(측정 전용)' },
+  { id: 'cs2', title: '크레딧 스프레드 추이', file: 'cs2.html', desc: '섹터·만기별 국고 대비 스프레드(bp) 시계열 — 이동평균(20/60/120/200)·역사적 평균(2/3/5/10년·MAX) + 두 섹터·만기 간 스프레드 차(A − B) 비교 (측정 전용)' },
   { id: 'us-credit-spread', title: 'US Credit Spread', file: 'us-credit-spread.html', desc: '미국 IG·HY·등급별 OAS + 파생 스프레드(BBB−A·A−AA·장기−전체) z250 — 하이퍼스케일러 발행압력 측정 (FRED BAML)' },
   { id: 'rv-screener', title: 'RV 스크리너', file: 'rv-screener.html', desc: 'K본드 호가 vs 민평 그리드 상대가치 — 발행사 커브 보간·횡단면 조정괴리로 수급 이상치 판별 (클라이언트 온리)' },
   { id: 'rv2-quote-rank', title: '호가 랭킹', file: 'rv2-quote-rank.html', desc: '케이본드 호가 vs 민평 오프셋(bp) — 섹터 버킷 중앙값 차감 후 싸게 나온 순 랭킹 (민평 업로드 없음·클라이언트 온리)' },

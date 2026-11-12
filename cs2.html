@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CS-2 크레딧 스프레드 추이 | FI Dashboard</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c2128;
+    --border: #21262d; --border-2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  body { padding: 28px 22px 80px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+
+  .eyebrow { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .step { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 3px 8px; border-radius: 4px; background: var(--accent); color: #08111f; }
+  .eyebrow .ctx { font-size: 12px; color: var(--muted); }
+  h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 3px; }
+  .tagline { font-size: 13px; color: var(--muted); margin: 0 0 20px; }
+
+  .series-bar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; padding: 12px 16px; background: var(--panel); border: 1px solid var(--border); border-radius: 9px; margin-bottom: 14px; font-size: 12px; }
+  .series-bar .sname { font-size: 14px; font-weight: 600; }
+  .series-bar .meta { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+  .series-bar .tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: var(--panel-2); border: 1px solid var(--border-2); color: var(--muted); }
+  .series-bar .asof { font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--text); }
+
+  /* 선택 패널 — A, B 두 다리. B 를 비우면 단일(국고 대비) 모드. */
+  .picker { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+  .leg { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 11px 14px 13px; }
+  .leg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.04em; }
+  .leg-head .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .leg-head .sp { flex: 1; }
+  .leg-row { display: flex; gap: 8px; }
+  select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border-2); border-radius: 7px;
+    font-family: var(--mono); font-size: 13px; padding: 7px 9px; min-width: 0; }
+  select.sector { flex: 1; }
+  select:disabled { opacity: 0.4; }
+  .mid { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    font-family: var(--mono); color: var(--muted); font-size: 18px; }
+  .btn { background: var(--panel); border: 1px solid var(--border-2); color: var(--muted); font-family: var(--mono);
+    font-size: 11px; padding: 4px 9px; border-radius: 6px; cursor: pointer; }
+  .btn:hover:not(:disabled) { background: var(--panel-2); color: var(--text); }
+  .btn:disabled { opacity: 0.35; cursor: default; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-bottom: 14px; align-items: center; }
+  .ctrl-group { display: flex; align-items: center; gap: 8px; }
+  .ctrl-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--border-2); border-radius: 7px; overflow: hidden; }
+  .seg button { background: transparent; border: none; color: var(--muted); font-family: var(--mono); font-size: 12px; padding: 6px 11px; cursor: pointer; border-right: 1px solid var(--border); }
+  .seg button:last-child { border-right: none; }
+  .seg button.active { background: var(--accent); color: #08111f; font-weight: 600; }
+  .seg button:hover:not(.active) { background: var(--panel-2); color: var(--text); }
+  /* 이동평균은 여러 개를 동시에 켜는 토글이라 '선택됨'을 채움색이 아닌 테두리·글자 밝기로만 표시한다.
+     앞의 색 점은 차트의 그 선 색이다. */
+  .seg.multi button { display: inline-flex; align-items: center; gap: 6px; opacity: 0.55; }
+  .seg.multi button i { width: 10px; height: 3px; border-radius: 2px; display: inline-block; }
+  .seg.multi button.active { background: var(--panel-2); color: var(--text); opacity: 1; }
+  .toggle { background: var(--panel); border: 1px solid var(--border-2); color: var(--muted); font-family: var(--mono);
+    font-size: 12px; padding: 6px 11px; border-radius: 7px; cursor: pointer; opacity: 0.55; }
+  .toggle.active { background: var(--panel-2); color: var(--text); opacity: 1; }
+
+  .stats { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 11px 13px; min-width: 0; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 5px; }
+  .stat-main { font-size: 21px; font-weight: 600; font-family: var(--mono); letter-spacing: -0.01em; }
+  .stat-unit { font-size: 11px; color: var(--muted); margin-left: 3px; font-weight: 400; }
+  .stat-sub { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px 6px; margin-bottom: 14px; }
+  .chart-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 2px 2px 6px; }
+  .chart-head h2 { font-size: 14px; margin: 0; font-family: var(--mono); font-weight: 600; }
+  .chart-head .cap { font-size: 11.5px; color: var(--muted); }
+  .chart-box { width: 100%; }
+
+  .note { font-size: 11px; color: var(--muted); margin-top: 10px; line-height: 1.7; }
+  .empty { color: var(--muted); font-size: 13px; padding: 20px; text-align: center; line-height: 1.7; }
+  .loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 60px 20px; color: var(--muted); font-size: 13px; }
+  .loading::before { content: ''; width: 16px; height: 16px; border: 2px solid var(--border-2);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* 모드 탭 */
+  .tabs { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .tabs .seg button { font-family: var(--sans); font-size: 13px; padding: 8px 18px; }
+  .tabs .hint { font-size: 11.5px; color: var(--muted); }
+
+  /* 전체 조망 격자 — 칸 하나가 미니 차트. 숫자는 무채색, 선 색은 계열 구분용이다. */
+  .tbl-wrap { overflow-x: auto; }
+  table.ov { border-collapse: collapse; width: 100%; table-layout: fixed; font-family: var(--mono); }
+  table.ov thead th { position: sticky; top: 0; z-index: 2; background: var(--panel); color: var(--muted);
+    font-weight: 600; font-size: 11px; text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-2); }
+  table.ov thead th.corner { width: 104px; }
+  table.ov tbody th { text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; color: var(--text);
+    padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.ov td { padding: 6px 8px 5px; border-bottom: 1px solid var(--border); border-left: 1px solid var(--border);
+    cursor: pointer; min-width: 78px; vertical-align: top; }
+  table.ov td:hover { background: var(--panel-2); }
+  table.ov td.nil { color: var(--border-2); text-align: center; cursor: default; }
+  table.ov .ov-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; flex-wrap: wrap; line-height: 1.2; }
+  table.ov .ov-top .v { font-size: 13px; font-weight: 700; color: var(--text); }
+  table.ov .ov-top .g { font-size: 10.5px; color: var(--muted); }
+  table.ov svg { display: block; width: 100%; height: 44px; margin: 4px 0 2px; overflow: visible; }
+  table.ov svg path { fill: none; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+  table.ov svg path.main { stroke-width: 1.5; }
+  table.ov svg path.ma { stroke-width: 1; opacity: 0.85; }
+  table.ov svg line.mean { stroke: #c9d1d9; stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; opacity: 0.7; }
+  table.ov .ov-bot { font-size: 10px; color: var(--muted); line-height: 1.2; }
+
+  /* 평균 대비 표 — 섹터×만기 한 장(배율) + 한 섹터의 연도별 평균 표.
+     색은 평균 대비 위치의 연속 표현이다(구간·임계값 없음). 숫자는 전부 무채색. */
+  table.mx, table.yt { border-collapse: collapse; width: 100%; font-family: var(--mono); }
+  table.mx { table-layout: fixed; }
+  table.mx thead th, table.yt thead th { position: sticky; top: 0; z-index: 2; background: var(--panel); color: var(--muted);
+    font-weight: 600; font-size: 11px; padding: 7px 6px; border-bottom: 1px solid var(--border-2); text-align: right; white-space: nowrap; }
+  table.mx thead th { text-align: center; }
+  table.mx thead th.corner, table.yt thead th.corner { text-align: left; }
+  table.mx thead th.corner { width: 104px; }
+  table.mx tbody th { text-align: left; font-weight: 600; font-size: 12px; white-space: nowrap; padding: 0 8px;
+    border-bottom: 1px solid var(--border); cursor: pointer; color: var(--text); }
+  table.mx tbody th:hover { color: var(--accent); }
+  table.mx tr.picked th { box-shadow: inset 3px 0 0 var(--accent); }
+  table.mx td { text-align: center; padding: 6px 2px 5px; border: 1px solid var(--bg); cursor: pointer; }
+  table.mx td:hover { outline: 1px solid var(--accent); outline-offset: -1px; }
+  table.mx td .r { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.2; }
+  table.mx td .s { font-size: 10px; color: #b1bac4; line-height: 1.3; white-space: nowrap; }
+  table.mx td.nil, table.yt td.nil { color: var(--border-2); text-align: center; cursor: default; }
+
+  table.yt td, table.yt tbody th { font-size: 12px; padding: 6px 6px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+  table.yt tbody th { text-align: left; font-weight: 600; color: var(--text); }
+  table.yt td { color: #b1bac4; }
+  table.yt tbody tr { cursor: pointer; }
+  table.yt tbody tr:hover td, table.yt tbody tr:hover th { background: var(--panel-2); }
+  table.yt .ex { opacity: 0.4; }
+  table.yt .sep { border-left: 1px solid var(--border-2); }
+  table.yt td.cur { color: var(--text); font-weight: 700; }
+  table.yt td.ratio { color: var(--text); font-weight: 700; font-size: 13px; }
+  .yt-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .legend { display: flex; align-items: center; gap: 9px; }
+  .legend .lg-bar { flex: none; width: 150px; height: 9px; border-radius: 3px; border: 1px solid var(--border-2);
+    background: linear-gradient(to right, rgba(56,178,172,0.42), rgba(56,178,172,0) 50%, rgba(217,144,42,0) 50%, rgba(217,144,42,0.42)); }
+
+  @media (max-width: 900px) {
+    .picker { grid-template-columns: 1fr; }
+    .mid { flex-direction: row; }
+    .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">
+    <span class="step">CS-2</span>
+    <span class="ctx">크레딧 스프레드 추이 · 민평 3사평균 · 국고 대비 bp</span>
+  </div>
+  <h1>크레딧 스프레드 추이</h1>
+  <p class="tagline">섹터·만기를 하나 고르면 국고 대비 스프레드 추이, 둘을 고르면 두 스프레드의 차(A − B) 추이. 이동평균과 역사적 평균을 얹어 위치만 표시하며 판단·시그널은 없다.</p>
+
+  <div id="cs2-status" class="loading">데이터 로드 중 (data/cs1/spreads.json)</div>
+
+  <div id="cs2-app" style="display:none">
+    <div class="series-bar">
+      <span class="sname">기준일</span>
+      <span class="asof" id="cs2-asof">—</span>
+      <span class="tag">cs1/spreads.json</span>
+      <span class="meta">기준 <span id="cs2-bench">—</span></span>
+      <span class="meta">기간 <span id="cs2-range">—</span></span>
+    </div>
+
+    <div class="tabs">
+      <div class="seg" id="cs2-tab">
+        <button data-mode="detail" type="button">개별</button>
+        <button data-mode="overview" type="button">전체 조망</button>
+        <button data-mode="table" type="button">평균 대비 표</button>
+      </div>
+      <span class="hint">개별 = 한 줄을 큰 차트로 · 전체 조망 = 섹터×만기 미니 차트 · 평균 대비 표 = 현재 ÷ 평균 배율 (칸을 누르면 개별로 이동)</span>
+    </div>
+
+    <div class="controls">
+      <div class="ctrl-group" id="cs2-view-group">
+        <span class="ctrl-label">차트 기간</span>
+        <div class="seg" id="cs2-view"></div>
+      </div>
+      <div class="ctrl-group" id="cs2-ma-group">
+        <span class="ctrl-label">이동평균</span>
+        <div class="seg multi" id="cs2-ma"></div>
+      </div>
+      <div class="ctrl-group">
+        <span class="ctrl-label">역사적 평균</span>
+        <div class="seg" id="cs2-hist"></div>
+        <button class="toggle" id="cs2-ex" type="button" title="평균·최저·최고·백분위·배율의 표본에서 2022년을 뺀다 (세 모드 공통)">2022 제외</button>
+        <button class="toggle" id="cs2-mean" type="button" title="평균선 표시 켜기/끄기">평균선</button>
+      </div>
+      <div class="ctrl-group" id="cs2-heat-group" style="display:none">
+        <span class="ctrl-label">색 기준</span>
+        <div class="seg" id="cs2-heat">
+          <button data-heat="ratio" type="button">배율</button>
+          <button data-heat="gap" type="button">bp 차</button>
+          <button data-heat="pct" type="button">백분위</button>
+          <button data-heat="off" type="button">끄기</button>
+        </div>
+      </div>
+      <div class="ctrl-group" id="cs2-ov-tenor-group" style="display:none">
+        <span class="ctrl-label">만기</span>
+        <div class="seg" id="cs2-ov-tenor">
+          <button data-tenor="default" type="button">1Y · 2Y · 3Y · 5Y</button>
+          <button data-tenor="all" type="button">전체 11만기</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="cs2-detail">
+    <div class="picker">
+      <div class="leg">
+        <div class="leg-head"><span class="dot" style="background:#58a6ff"></span>A — 섹터 · 만기</div>
+        <div class="leg-row">
+          <select id="cs2-a-sector" class="sector" aria-label="A 섹터"></select>
+          <select id="cs2-a-tenor" aria-label="A 만기"></select>
+        </div>
+      </div>
+      <div class="mid">
+        <span>−</span>
+        <button class="btn" id="cs2-swap" type="button" title="A 와 B 를 맞바꾼다">A⇄B</button>
+      </div>
+      <div class="leg">
+        <div class="leg-head"><span class="dot" style="background:#d2a8ff"></span>B — 비교 대상 (선택)
+          <span class="sp"></span>
+          <button class="btn" id="cs2-clear" type="button" title="B 를 비우고 A 의 국고 대비 스프레드만 본다">비우기</button>
+        </div>
+        <div class="leg-row">
+          <select id="cs2-b-sector" class="sector" aria-label="B 섹터"></select>
+          <select id="cs2-b-tenor" aria-label="B 만기"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="stats" id="cs2-stats"></div>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <h2 id="cs2-title">—</h2>
+        <span class="cap"><span id="cs2-mode"></span> · <span id="cs2-hist-note"></span></span>
+      </div>
+      <div class="chart-box" id="cs2-chart"></div>
+    </div>
+
+    <div class="chart-card" id="cs2-legs-card" style="display:none">
+      <div class="chart-head">
+        <h2 id="cs2-legs-title">—</h2>
+        <span class="cap">위 차트의 차를 이루는 두 스프레드</span>
+      </div>
+      <div class="chart-box" id="cs2-legs"></div>
+    </div>
+
+    </div><!-- /cs2-detail -->
+
+    <div id="cs2-overview" style="display:none">
+      <div class="chart-card">
+        <div class="chart-head">
+          <h2>섹터 × 만기 — 국고 대비 스프레드 (bp)</h2>
+          <span class="cap" id="cs2-ov-cap"></span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="ov">
+            <thead id="cs2-ov-head"></thead>
+            <tbody id="cs2-ov-body"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          칸 = 현재값(bp) · 오른쪽 작은 숫자 = 현재 − 역사적 평균 · 아래 = 평균 기간 내 백분위(0 = 기간 최저, 100 = 최고).<br>
+          미니 차트의 세로축은 칸마다 따로 잡는다 — 칸끼리 선의 높낮이를 비교할 수 없다(레벨은 숫자로 비교).
+          긴 기간은 그림만 솎아 그리며 숫자는 전부 원 시계열 기준이다. 차트 기간·이동평균·역사적 평균은 위 설정을 그대로 따른다.
+        </div>
+      </div>
+    </div>
+
+    <div id="cs2-table" style="display:none">
+      <div class="chart-card">
+        <div class="chart-head">
+          <h2>섹터 × 만기 — 현재 ÷ 평균 (배)</h2>
+          <span class="cap" id="cs2-mx-cap"></span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="mx">
+            <thead id="cs2-mx-head"></thead>
+            <tbody id="cs2-mx-body"></tbody>
+          </table>
+        </div>
+        <div class="note legend" id="cs2-legend">
+          <span class="lg-bar"></span>
+          <span><span id="cs2-legend-text"></span> · 청록 = 평균보다 좁음 · 호박 = 평균보다 넓음 · 연속 농도(구간 없음) · 판단·시그널 아님</span>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-head">
+          <div class="yt-head">
+            <h2>연도별 평균 (bp)</h2>
+            <select id="cs2-yt-sector" aria-label="연도별 표 섹터"></select>
+          </div>
+          <span class="cap">위 표의 섹터 이름을 눌러도 바뀐다 · 행을 누르면 그 만기 추이로 이동</span>
+        </div>
+        <div class="tbl-wrap">
+          <table class="yt">
+            <thead id="cs2-yt-head"></thead>
+            <tbody id="cs2-yt-body"></tbody>
+          </table>
+        </div>
+        <div class="note">
+          배율 = 현재 스프레드 ÷ 평균. 1.00 이면 평균과 같고, 2.00 이면 평균의 두 배다. 스프레드가 얇은 섹터·만기는 몇 bp 차이로도
+          배율이 크게 나오므로 현재 − 평균(bp)과 백분위를 함께 읽는다 — 색 기준을 바꾸면 같은 표를 세 가지 척도로 볼 수 있다.<br>
+          전주비 = 5영업일 전 대비 bp. 마지막 해의 연도 평균은 연초부터 기준일까지다. * 표시한 해는 평균 표본에서 뺀 해(숫자는 참고로 남긴다).
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      모든 값은 국고 동일만기 대비 bp(민평 3사평균)다. B 를 고르면 A − B 를 그린다 — 두 다리의 만기가 같으면 두 수익률의 차와 같고,
+      만기가 다르면 각자 자기 만기 국고를 뺀 스프레드끼리의 차다.<br>
+      이동평균 = 후행 단순평균(영업일). 창 N일이 전부 유효 관측일 때만 그린다. 차트 기간과 무관하게 전 이력으로 계산한다.<br>
+      역사적 평균 = 마지막 관측일에서 달력으로 N년 전 같은 날 이후 표본의 산술평균(MAX = 전 이력). 가로 점선은 그 한 값이며
+      차트 기간이 더 짧아도 같은 값을 긋는다. 카드의 최저·최고·백분위·z·배율도 같은 표본 기준이다(z 는 표본표준편차).<br>
+      '2022 제외'를 켜면 그 표본에서 2022년 관측을 뺀다(세 모드 공통, 현재값은 그대로). 2Y·3Y 처럼 2022년이 들어가지 않는 기간에서는 아무것도 바뀌지 않는다.<br>
+      결측은 채우지 않는다. 한쪽 다리가 비는 날은 차도 비운다.
+    </div>
+  </div>
+</div>
+
+<!-- 공통 내비게이션 -->
+<script type="module" src="js/nav.js"></script>
+<!-- vendor -->
+<script src="vendor/plotly.min.js"></script>
+<!-- app (ES module) -->
+<script type="module">
+  import { initCs2 } from './js/cs2/cs2-ui.js';
+  initCs2();
+</script>
+</body>
+</html>
