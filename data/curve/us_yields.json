@@ -1,7 +1,7 @@
 {
   "meta": {
     "module": "CP",
-    "updated_at": "2026-11-19",
+    "updated_at": "2026-11-20",
     "source": "FRED",
     "unit": "percent",
     "series": {
@@ -59343,6 +59343,13 @@
       "dgs2": 4.76,
       "dgs5": 4.86,
       "dgs10": 5.04,
+      "effr": 3.88
+    },
+    {
+      "date": "2026-11-20",
+      "dgs2": 4.63,
+      "dgs5": 4.71,
+      "dgs10": 4.92,
       "effr": 3.88
     }
   ]
